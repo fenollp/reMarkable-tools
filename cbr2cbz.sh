@@ -3,19 +3,20 @@ set -o pipefail
 
 # sudo apt install unrar
 
-[[ $# -eq 0 ]] && echo "Usage: $0 (--keep | --dont-keep) *.cbr" && exit 1
+[[ $# -eq 0 ]] && echo "Usage: $0 (--keep-cbr | --dont-keep-cbr) *.cbr" && exit 1
 
 KEEP=
 case "$1" in
-    --keep) KEEP=yes ;;
-    --dont-keep) KEEP=no ;;
+    --keep-cbr) KEEP=yes ;;
+    --dont-keep-cbr) KEEP=no ;;
     *) exit 1
 esac
 shift
 
 until [[ "${1:-}" = '' ]]; do
     f=$1; shift
-    [[ ! -f "$f" ]] && "Not a CBR: $f" && exit 2
+    [[ ! -f "$f" ]] && echo "Skipping non existing $f" && continue
+    ( ! file "$f" | grep -F RAR >/dev/null ) && echo "Not a CBR: $f" && exit 2
 
     naked=${f%%.*}
     [[ -f "$naked".cbz ]] && continue
@@ -30,6 +31,6 @@ until [[ "${1:-}" = '' ]]; do
     echo Compressing "$naked"
     zip -r "$naked".cbz "$naked"
 
-    rm -r "$naked"
+    rm -rf "$naked"
     [[ "$KEEP" = no ]] && rm "$f"
 done
