@@ -1,4 +1,4 @@
-#!/bin/bash -eu
+#!/bin/bash -eux
 set -o pipefail
 
 # sudo apt install unrar
@@ -15,17 +15,17 @@ shift
 
 until [[ "${1:-}" = '' ]]; do
     f=$1; shift
-    [[ ! -f "$f" ]] && echo "Skipping non existing $f" && continue
-    ( ! file "$f" | grep -F RAR >/dev/null ) && echo "Not a CBR: $f" && exit 2
-
-    naked=${f%%.*}
-    [[ -f "$naked".cbz ]] && continue
+    echo "$f"
+    [[ ! -f "$f" ]] && echo "Non existing: skipping" && continue
+    naked=${f%.cbr}
+    [[ "$naked" = "$f" ]] && echo "Not a CBR" && continue
+    [[ -f "$naked".cbz ]] && echo "CBZ already exists" && exit 2
     if [[ -d "$naked" ]] && ! rmdir "$naked" >/dev/null; then
         echo "$naked path is not empty" && exit 2
     fi
     mkdir "$naked"
 
-    echo Extracting "$f"
+    echo Extracting...
     unrar x "$f" "$naked"
 
     echo Compressing "$naked"
