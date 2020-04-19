@@ -4,6 +4,10 @@ Tools for the reMarkable paper tablet
 ## koreader
 * https://github.com/koreader/koreader/releases/latest
 * instructions: https://github.com/koreader/koreader/wiki/Installation-on-Remarkable
+* creates metadata files:
+```
+find ~ -name '*.sdr'
+```
 
 ## Tools
 * [`cbr2cbz.sh *.cbr`](./cbr2cbz.sh) unrars then zips CBRs into CBZs so `koreader` can open them.
