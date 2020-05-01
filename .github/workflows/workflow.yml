@@ -12,6 +12,7 @@ jobs:
         target: armv7-unknown-linux-musleabihf
         override: true
     - uses: actions-rs/cargo@v1
+      working-directory: marauder
       with:
         use-cross: true
         command: build
