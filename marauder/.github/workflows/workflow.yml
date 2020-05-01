@@ -1,0 +1,18 @@
+on: [push]
+name: Build for reMarkable
+jobs:
+  build_for_remarkable:
+    name: with musl
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly # TODO: stable once const-fn is in
+        target: armv7-unknown-linux-musleabihf
+        override: true
+    - uses: actions-rs/cargo@v1
+      with:
+        use-cross: true
+        command: build
+        args: --release --target armv7-unknown-linux-musleabihf
