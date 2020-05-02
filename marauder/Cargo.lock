@@ -372,7 +372,7 @@ checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
 [[package]]
 name = "libremarkable"
 version = "0.3.2"
-source = "git+https://github.com/fenollp/libremarkable?branch=nits#43a07dd191f39e68573c5c83b3bb842e9de93cd8"
+source = "git+https://github.com/canselcik/libremarkable#756c2f0ced91e1dcdd8ba38e08943751bee0ec01"
 dependencies = [
  "aabb-quadtree",
  "atomic",

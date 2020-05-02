@@ -22,4 +22,4 @@ debug: DEVICE ?= root@10.11.99.1
 debug: all
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	scp ./target/$(TARGET)/release/$(EXE) $(DEVICE):
-	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE)'
+	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'

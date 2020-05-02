@@ -31,3 +31,20 @@ so routinely run
 ```
 journalctl --vacuum-size=2M
 ```
+
+## marauder
+
+* [![Marauder's map](https://thumbs.gfycat.com/AcrobaticLastingBeardedcollie-mobile.jpg)](https://zippy.gfycat.com/AcrobaticLastingBeardedcollie.webm)
+* https://github.com/ax3l/lines-are-rusty
+	* https://github.com/reHackable/maxio/blob/master/tools/rM2svg
+* datasets & models for online writting & drawings
+	* task: HTR = Handwriting Text Recognition
+	* https://quickdraw.withgoogle.com
+	* https://archive.ics.uci.edu/ml/datasets/UJI+Pen+Characters
+	* https://arxiv.org/abs/1904.08095
+	* https://arxiv.org/abs/1907.12935
+	* https://www.gavo.t.u-tokyo.ac.jp/~qiao/database.html
+	* http://www.wikicfp.com/cfp/program?id=1366&f=International%20Conference%20on%20Frontiers%20in%20Handwriting%20Recognition
+	* https://en.wikipedia.org/wiki/List_of_datasets_for_machine-learning_research#Handwriting_and_character_recognition
+	* https://mathpix.com/
+* https://github.com/dickrnn/dickrnn.github.io

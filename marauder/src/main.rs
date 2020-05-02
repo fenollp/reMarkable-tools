@@ -31,6 +31,7 @@ extern crate atomic;
 use atomic::Atomic;
 
 use std::collections::VecDeque;
+use std::fmt;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -43,6 +44,9 @@ enum DrawMode {
     Erase(u32),
 }
 impl DrawMode {
+    fn default() -> Self {
+        DrawMode::Draw(2)
+    }
     fn set_size(self, new_size: u32) -> Self {
         match self {
             DrawMode::Draw(_) => DrawMode::Draw(new_size),
@@ -94,6 +98,79 @@ impl TouchMode {
     }
 }
 
+struct Stroke {
+    color: color,
+    tip_size: u32,
+    points_and_pressure: VecDeque<(cgmath::Point2<f32>, u16)>,
+}
+impl Stroke {
+    fn new() -> Self {
+        Stroke {
+            color: color::default(),
+            tip_size: DrawMode::default().get_size(),
+            points_and_pressure: VecDeque::new(),
+        }
+    }
+    fn set_color(&mut self, color: color) {
+        self.color = color;
+    }
+    fn set_tip_size(&mut self, tip_size: u32) {
+        self.tip_size = tip_size;
+    }
+    fn invert_color(&mut self) {
+        match self.color {
+            color::WHITE => self.color = color::BLACK,
+            _ => self.color = color::WHITE,
+        }
+    }
+    fn push_back(&mut self, p: cgmath::Point2<f32>, pressure: u16) {
+        self.points_and_pressure.push_back((p, pressure));
+    }
+    fn clear(&mut self) {
+        self.points_and_pressure.clear();
+    }
+    fn drawpop(&mut self, app: &mut appctx::ApplicationContext) {
+        let mult = self.tip_size as f32;
+        while self.points_and_pressure.len() >= 3 {
+            let framebuffer = app.get_framebuffer_ref();
+            let points = vec![
+                self.points_and_pressure.pop_front().unwrap(),
+                self.points_and_pressure.get(0).unwrap().clone(),
+                self.points_and_pressure.get(1).unwrap().clone(),
+            ];
+            let radii: Vec<f32> = points
+                .iter()
+                .map(|pandp| ((mult * (pandp.1 as f32) / 2048.) / 2.))
+                .collect();
+            // calculate control points
+            let start_point = points[2].0.midpoint(points[1].0);
+            let ctrl_point = points[1].0;
+            let end_point = points[1].0.midpoint(points[0].0);
+            // calculate diameters
+            let start_width = radii[2] + radii[1];
+            let ctrl_width = radii[1] * 2.;
+            let end_width = radii[1] + radii[0];
+            let rect = framebuffer.draw_dynamic_bezier(
+                (start_point, start_width),
+                (ctrl_point, ctrl_width),
+                (end_point, end_width),
+                10,
+                self.color,
+            );
+
+            framebuffer.partial_refresh(
+                &rect,
+                PartialRefreshMode::Async,
+                waveform_mode::WAVEFORM_MODE_DU,
+                display_temp::TEMP_USE_REMARKABLE_DRAW,
+                dither_mode::EPDC_FLAG_EXP1,
+                DRAWING_QUANT_BIT,
+                false,
+            );
+        }
+    }
+}
+
 // This region will have the following size at rest:
 //   raw: 5896 kB
 //   zstd: 10 kB
@@ -106,11 +183,13 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 
 lazy_static! {
     static ref G_TOUCH_MODE: Atomic<TouchMode> = Atomic::new(TouchMode::OnlyUI);
-    static ref G_DRAW_MODE: Atomic<DrawMode> = Atomic::new(DrawMode::Draw(2));
+    static ref G_DRAW_MODE: Atomic<DrawMode> = Atomic::new(DrawMode::default());
     static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
+    static ref WACOM_UNDO: Mutex<Stroke> = Mutex::new(Stroke::new());
+    static ref WACOM_UNDO_TICK: AtomicBool = AtomicBool::new(true);
     static ref G_COUNTER: Mutex<u32> = Mutex::new(0);
     static ref LAST_REFRESHED_CANVAS_RECT: Atomic<mxcfb_rect> = Atomic::new(mxcfb_rect::invalid());
     static ref SAVED_CANVAS: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
@@ -119,6 +198,13 @@ lazy_static! {
 // ####################
 // ## Button Handlers
 // ####################
+
+fn on_undo(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+    let mut wacom_undo = WACOM_UNDO.lock().unwrap();
+    wacom_undo.invert_color();
+    wacom_undo.drawpop(app);
+    wacom_undo.clear();
+}
 
 fn on_save_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
     start_bench!(stopwatch, save_canvas);
@@ -413,6 +499,52 @@ fn loop_update_topbar(app: &mut appctx::ApplicationContext, millis: u64) {
     }
 }
 
+struct NormPoint2 {
+    pos_x: f32,
+    pos_y: f32,
+    pressure: f32,
+    tilt_x: f32,
+    tilt_y: f32,
+}
+
+fn from_draw_event(
+    position: cgmath::Point2<f32>,
+    pressure: u16,
+    tilt: cgmath::Vector2<u16>,
+) -> NormPoint2 {
+    let x = (position.x - (CANVAS_REGION.left as f32)) / (CANVAS_REGION.width as f32);
+    let y = (position.y - (CANVAS_REGION.top as f32)) / (CANVAS_REGION.height as f32);
+    let x = if x < 0.0 { 0.0 } else { x };
+    let x = if x > 1.0 { 1.0 } else { x };
+    let y = if y < 0.0 { 0.0 } else { y };
+    let y = if y > 1.0 { 1.0 } else { y };
+    NormPoint2 {
+        pos_x: x,
+        pos_y: y,
+        //
+        pressure: (pressure as f32) / (u16::MAX as f32),
+        // tilt
+        tilt_x: (tilt.x as f32) / (u16::MAX as f32),
+        tilt_y: (tilt.y as f32) / (u16::MAX as f32),
+    }
+}
+
+impl fmt::Display for NormPoint2 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "({}, {}) @{} /({},{})",
+            self.pos_x,
+            self.pos_y,
+            //
+            self.pressure,
+            //
+            self.tilt_x,
+            self.tilt_y,
+        )
+    }
+}
+
 // ####################
 // ## Input Handlers
 // ####################
@@ -422,8 +554,10 @@ fn on_wacom_input(app: &mut appctx::ApplicationContext, input: wacom::WacomEvent
         wacom::WacomEvent::Draw {
             position,
             pressure,
-            tilt: _,
+            tilt,
         } => {
+            debug!(">>> {}", from_draw_event(position, pressure, tilt));
+
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             // This is so that we can click the buttons outside the canvas region
@@ -448,6 +582,16 @@ fn on_wacom_input(app: &mut appctx::ApplicationContext, input: wacom::WacomEvent
             };
 
             wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
+            {
+                let mut wacom_undo = WACOM_UNDO.lock().unwrap();
+                if WACOM_UNDO_TICK.load(Ordering::Relaxed) {
+                    WACOM_UNDO_TICK.store(false, Ordering::Relaxed);
+                    wacom_undo.clear();
+                    wacom_undo.set_color(col);
+                    wacom_undo.set_tip_size(mult);
+                }
+                wacom_undo.push_back(position.cast().unwrap(), pressure);
+            }
 
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
@@ -514,6 +658,7 @@ fn on_wacom_input(app: &mut appctx::ApplicationContext, input: wacom::WacomEvent
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                 wacom_stack.clear();
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
+                WACOM_UNDO_TICK.store(true, Ordering::Relaxed);
             }
         }
         _ => {}
@@ -676,7 +821,6 @@ fn main() {
     //     UIElementWrapper {
     //         position: cgmath::Point2 { x: 900, y: 10 },
     //         refresh: UIConstraintRefresh::Refresh,
-
     //          // We could have alternatively done this:
     //          //   // Create a clickable region for multitouch input and associate it with its handler fn
     //          //   app.create_active_region(10, 900, 240, 480, on_touch_rustlogo);
@@ -727,7 +871,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 960, y: 370 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_zoom_out),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -744,7 +887,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 1155, y: 370 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_blur_canvas),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -761,7 +903,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 1247, y: 370 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_invert_canvas),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -779,7 +920,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 960, y: 440 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_save_canvas),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -796,11 +936,26 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 1080, y: 440 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_load_canvas),
             inner: UIElement::Text {
                 foreground: color::BLACK,
                 text: "Load".to_owned(),
+                scale: 45.0,
+                border_px: 5,
+            },
+            ..Default::default()
+        },
+    );
+
+    app.add_element(
+        "undoButton",
+        UIElementWrapper {
+            position: cgmath::Point2 { x: 1200, y: 440 },
+            refresh: UIConstraintRefresh::Refresh,
+            onclick: Some(on_undo),
+            inner: UIElement::Text {
+                foreground: color::BLACK,
+                text: "Undo".to_owned(),
                 scale: 45.0,
                 border_px: 5,
             },
@@ -814,7 +969,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 960, y: 510 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_change_touchdraw_mode),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -830,7 +984,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 1210, y: 510 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: None,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -848,7 +1001,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 960, y: 580 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: Some(on_toggle_eraser),
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -864,7 +1016,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 1210, y: 580 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: None,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -965,7 +1116,6 @@ fn main() {
         UIElementWrapper {
             position: cgmath::Point2 { x: 30, y: 50 },
             refresh: UIConstraintRefresh::Refresh,
-
             onclick: None,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -1152,35 +1302,35 @@ fn main() {
         loop_update_topbar(appref, 30 * 1000);
     });
 
-    app.execute_lua(
-        r#"
-      function draw_box(y, x, height, width, borderpx, bordercolor)
-        local maxy = y+height;
-        local maxx = x+width;
-        for cy=y,maxy,1 do
-          for cx=x,maxx,1 do
-            if (math.abs(cx-x) < borderpx or math.abs(maxx-cx) < borderpx) or
-               (math.abs(cy-y) < borderpx or math.abs(maxy-cy) < borderpx) then
-              fb.set_pixel(cy, cx, bordercolor);
-            end
-          end
-        end
-      end
+    // app.execute_lua(
+    //     r#"
+    //   function draw_box(y, x, height, width, borderpx, bordercolor)
+    //     local maxy = y+height;
+    //     local maxx = x+width;
+    //     for cy=y,maxy,1 do
+    //       for cx=x,maxx,1 do
+    //         if (math.abs(cx-x) < borderpx or math.abs(maxx-cx) < borderpx) or
+    //            (math.abs(cy-y) < borderpx or math.abs(maxy-cy) < borderpx) then
+    //           fb.set_pixel(cy, cx, bordercolor);
+    //         end
+    //       end
+    //     end
+    //   end
 
-      top = 430;
-      left = 570;
-      width = 320;
-      height = 90;
-      borderpx = 3;
-      draw_box(top, left, height, width, borderpx, 255);
+    //   top = 430;
+    //   left = 570;
+    //   width = 320;
+    //   height = 90;
+    //   borderpx = 3;
+    //   draw_box(top, left, height, width, borderpx, 255);
 
-      -- Draw black text inside the box. Notice the text is bottom aligned.
-      fb.draw_text(top+55, left+22, '...also supports Lua', 30, 255);
+    //   -- Draw black text inside the box. Notice the text is bottom aligned.
+    //   fb.draw_text(top+55, left+22, '...also supports Lua', 30, 255);
 
-      -- Update the drawn rect w/ `deep_plot=false` and `wait_for_update_complete=true`
-      fb.refresh(top, left, height, width, false, true);
-    "#,
-    );
+    //   -- Update the drawn rect w/ `deep_plot=false` and `wait_for_update_complete=true`
+    //   fb.refresh(top, left, height, width, false, true);
+    // "#,
+    // );
 
     info!("Init complete. Beginning event dispatch...");
 
