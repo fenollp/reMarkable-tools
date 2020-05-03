@@ -48,3 +48,4 @@ journalctl --vacuum-size=2M
 	* https://en.wikipedia.org/wiki/List_of_datasets_for_machine-learning_research#Handwriting_and_character_recognition
 	* https://mathpix.com/
 * https://github.com/dickrnn/dickrnn.github.io
+* https://github.com/tonybeltramelli/pix2code

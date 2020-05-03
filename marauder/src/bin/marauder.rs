@@ -29,8 +29,6 @@ use atomic::Atomic;
 extern crate rand;
 use rand::Rng;
 
-use itertools::Itertools;
-
 use std::collections::VecDeque;
 use std::fmt;
 use std::process::Command;
@@ -39,204 +37,10 @@ use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
-#[derive(Copy, Clone, PartialEq)]
-enum DrawMode {
-    Draw(u32),
-    Erase(u32),
-}
-impl DrawMode {
-    fn default() -> Self {
-        DrawMode::Draw(2)
-    }
-    fn set_size(self, new_size: u32) -> Self {
-        match self {
-            DrawMode::Draw(_) => DrawMode::Draw(new_size),
-            DrawMode::Erase(_) => DrawMode::Erase(new_size),
-        }
-    }
-    fn color_as_string(self) -> String {
-        match self {
-            DrawMode::Draw(_) => "Black",
-            DrawMode::Erase(_) => "White",
-        }
-        .into()
-    }
-    fn get_size(self) -> u32 {
-        match self {
-            DrawMode::Draw(s) => s,
-            DrawMode::Erase(s) => s,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-enum TouchMode {
-    OnlyUI,
-    Bezier,
-    Circles,
-    Diamonds,
-    FillDiamonds,
-}
-impl TouchMode {
-    fn toggle(self) -> Self {
-        match self {
-            TouchMode::OnlyUI => TouchMode::Bezier,
-            TouchMode::Bezier => TouchMode::Circles,
-            TouchMode::Circles => TouchMode::Diamonds,
-            TouchMode::Diamonds => TouchMode::FillDiamonds,
-            TouchMode::FillDiamonds => TouchMode::OnlyUI,
-        }
-    }
-}
-impl fmt::Display for TouchMode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TouchMode::OnlyUI => write!(f, "None"),
-            TouchMode::Bezier => write!(f, "Bezier"),
-            TouchMode::Circles => write!(f, "Circles"),
-            TouchMode::Diamonds => write!(f, "Diamonds"),
-            TouchMode::FillDiamonds => write!(f, "FDiamonds"),
-        }
-    }
-}
-
-struct Strokes {
-    strokes: Vec<Stroke>,
-}
-impl From<Vec<Stroke>> for Strokes {
-    fn from(strokes: Vec<Stroke>) -> Self {
-        Strokes { strokes }
-    }
-}
-impl Strokes {
-    fn draw(&self, app: &mut appctx::ApplicationContext) {
-        for stroke in self.strokes.iter() {
-            stroke.draw(app);
-            sleep(2 * stroke.step);
-        }
-    }
-    fn approximate_rect(&self) -> (f32, f32, f32, f32) {
-        let (mut xmin, mut xmax) = (CANVAS_REGION.width as f32, 0.);
-        let (mut ymin, mut ymax) = (CANVAS_REGION.height as f32, 0.);
-        for stroke in self.strokes.iter() {
-            for (p, _) in stroke.points_and_pressure.iter() {
-                xmin = if p.x < xmin { p.x } else { xmin };
-                xmax = if p.x > xmax { p.x } else { xmax };
-                ymin = if p.y < ymin { p.y } else { ymin };
-                ymax = if p.y > ymax { p.y } else { ymax };
-            }
-        }
-        (xmin, xmax, ymin, ymax)
-    }
-    fn translation_boundaries(&self) -> (f32, f32, f32, f32) {
-        let (xmin, xmax, ymin, ymax) = self.approximate_rect();
-        let left = (CANVAS_REGION.width as f32) - xmin;
-        let right = (CANVAS_REGION.width as f32) - xmax;
-        let top = (CANVAS_REGION.height as f32) - ymin;
-        let bottom = (CANVAS_REGION.height as f32) - ymax;
-        let width = xmax - xmin;
-        let height = ymax - ymin;
-        (
-            // xs
-            -(left - width),
-            right - width,
-            // ys
-            -(top - height),
-            bottom - height,
-        )
-    }
-    fn translate(&mut self, (dx, dy): (f32, f32)) {
-        for stroke in &mut self.strokes {
-            stroke.translate((dx, dy));
-        }
-    }
-}
-
-struct Stroke {
-    color: color,
-    tip_size: u32,
-    step: Duration,
-    points_and_pressure: Vec<(cgmath::Point2<f32>, u16)>,
-}
-impl Stroke {
-    fn new() -> Self {
-        Stroke {
-            color: color::default(),
-            tip_size: DrawMode::default().get_size(),
-            step: Duration::from_millis(0),
-            points_and_pressure: Vec::new(),
-        }
-    }
-    fn set_color(&mut self, color: color) {
-        self.color = color;
-    }
-    fn set_tip_size(&mut self, tip_size: u32) {
-        self.tip_size = tip_size;
-    }
-    fn set_step(&mut self, x: Duration) {
-        self.step = x;
-    }
-    fn set_points_and_pressure(&mut self, x: &[(cgmath::Point2<f32>, u16)]) {
-        self.points_and_pressure = x.to_owned();
-    }
-    fn invert_color(&mut self) {
-        match self.color {
-            color::WHITE => self.color = color::BLACK,
-            _ => self.color = color::BLACK,
-        }
-    }
-    fn push_back(&mut self, p: cgmath::Point2<f32>, pressure: u16) {
-        self.points_and_pressure.push((p, pressure));
-    }
-    fn clear(&mut self) {
-        self.points_and_pressure.clear();
-    }
-    fn translate(&mut self, (dx, dy): (f32, f32)) {
-        for (p, _) in &mut self.points_and_pressure {
-            p.x += dx;
-            p.y += dy;
-        }
-    }
-    fn draw(&self, app: &mut appctx::ApplicationContext) {
-        let mult = self.tip_size as f32;
-        for (start, ctrl, end) in self.points_and_pressure.iter().tuple_windows() {
-            let points = vec![start, ctrl, end];
-            let radii: Vec<f32> = points
-                .iter()
-                .map(|pandp| ((mult * (pandp.1 as f32) / 2048.) / 2.))
-                .collect();
-            // calculate control points
-            let start_point = points[2].0.midpoint(points[1].0);
-            let ctrl_point = points[1].0;
-            let end_point = points[1].0.midpoint(points[0].0);
-            // calculate diameters
-            let start_width = radii[2] + radii[1];
-            let ctrl_width = radii[1] * 2.;
-            let end_width = radii[1] + radii[0];
-
-            let framebuffer = app.get_framebuffer_ref();
-            let rect = framebuffer.draw_dynamic_bezier(
-                (start_point, start_width),
-                (ctrl_point, ctrl_width),
-                (end_point, end_width),
-                10,
-                self.color,
-            );
-            framebuffer.partial_refresh(
-                &rect,
-                PartialRefreshMode::Async,
-                waveform_mode::WAVEFORM_MODE_DU,
-                display_temp::TEMP_USE_REMARKABLE_DRAW,
-                dither_mode::EPDC_FLAG_EXP1,
-                DRAWING_QUANT_BIT,
-                false,
-            );
-            if self.step > Duration::from_millis(1) {
-                sleep(self.step)
-            }
-        }
-    }
-}
+use marauder::modes::draw::DrawMode;
+use marauder::modes::touch::TouchMode;
+use marauder::shapes::smileyface::smileyface;
+use marauder::strokes::Stroke;
 
 // This region will have the following size at rest:
 //   raw: 5896 kB
@@ -255,7 +59,7 @@ lazy_static! {
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
-    static ref WACOM_UNDO: Mutex<Stroke> = Mutex::new(Stroke::new());
+    static ref WACOM_UNDO: Mutex<Stroke> = Mutex::new(Stroke::default());
     static ref WACOM_UNDO_TICK: AtomicBool = AtomicBool::new(true);
     static ref G_COUNTER: Mutex<u32> = Mutex::new(0);
     static ref LAST_REFRESHED_CANVAS_RECT: Atomic<mxcfb_rect> = Atomic::new(mxcfb_rect::invalid());
@@ -500,228 +304,8 @@ fn loop_update_topbar(app: &mut appctx::ApplicationContext, millis: u64) {
     }
 }
 
-fn strokes_smileyface(c: color, step: Duration) -> Strokes {
-    let mut left_eye = Stroke::new();
-    left_eye.set_points_and_pressure(&[
-        ((1167.1279, 780.51337).into(), 1978),
-        ((1166.9495, 780.60266).into(), 2167),
-        ((1166.8601, 780.69196).into(), 2458),
-        ((1166.9495, 780.60266).into(), 2725),
-        ((1166.9495, 780.51337).into(), 2842),
-        ((1166.9495, 780.51337).into(), 2839),
-        ((1167.0387, 780.51337).into(), 2765),
-        ((1167.1279, 780.51337).into(), 2603),
-        ((1167.2173, 780.60266).into(), 2424),
-        ((1167.5745, 780.69196).into(), 2256),
-        ((1168.3779, 780.78125).into(), 2029),
-        ((1169.2709, 781.0491).into(), 1709),
-        ((1170.1637, 781.22766).into(), 1490),
-        ((1171.2351, 781.31696).into(), 1441),
-        ((1171.9493, 782.0312).into(), 916),
-        ((1173.0208, 782.1205).into(), 10),
-    ]);
-    // (0.8312877, 0.056030896) @0.030182345 /(0.99696344,0.05035477)
-    // (0.8311606, 0.056113575) @0.0330663 /(0.99696344,0.05035477)
-    // (0.83109695, 0.056196254) @0.037506677 /(0.99696344,0.05035477)
-    // (0.8311606, 0.056113575) @0.041580833 /(0.99696344,0.05035477)
-    // (0.8311606, 0.056030896) @0.04336614 /(0.99696344,0.05035477)
-    // (0.8311606, 0.056030896) @0.04332036 /(0.99696344,0.05035477)
-    // (0.83122414, 0.056030896) @0.042191196 /(0.99696344,0.05035477)
-    // (0.8312877, 0.056030896) @0.039719235 /(0.99696344,0.05035477)
-    // (0.83135134, 0.056113575) @0.03698787 /(0.99696344,0.05035477)
-    // (0.83160573, 0.056196254) @0.034424353 /(0.99696344,0.05035477)
-    // (0.832178, 0.056278937) @0.030960556 /(0.99696344,0.05035477)
-    // (0.83281404, 0.056526918) @0.02607767 /(0.99696344,0.05035477)
-    // (0.8334499, 0.05669228) @0.022735942 /(0.99696344,0.05035477)
-    // (0.834213, 0.05677496) @0.02198825 /(0.99696344,0.05035477)
-    // (0.83472174, 0.057436287) @0.013977264 /(0.99696344,0.05035477)
-    // (0.83548486, 0.057518966) @0.00015259022 /(0.99696344,0.05035477)
-
-    let mut right_eye = Stroke::new();
-    right_eye.set_points_and_pressure(&[
-        ((1183.6456, 784.174).into(), 1434),
-        ((1183.8242, 784.0847).into(), 1502),
-        ((1184.1814, 783.7276).into(), 1742),
-        ((1184.1814, 783.549).into(), 2113),
-        ((1184.1814, 783.4597).into(), 2402),
-        ((1184.2706, 783.3705).into(), 2544),
-        ((1184.3599, 783.2812).into(), 2609),
-        ((1184.3599, 783.1919).into(), 2640),
-        ((1184.4492, 783.0133).into(), 2650),
-        ((1184.6278, 782.924).into(), 2638),
-        ((1184.8956, 782.8348).into(), 2599),
-        ((1185.0742, 782.6562).into(), 2532),
-        ((1185.4313, 782.5669).into(), 2403),
-        ((1185.8777, 782.2991).into(), 2113),
-        ((1186.4135, 782.1205).into(), 1683),
-        ((1185.7885, 783.0133).into(), 1229),
-        ((1186.5027, 782.924).into(), 7),
-    ]);
-    // (0.84305245, 0.05942038) @0.021881437 /(0,0.044251163)
-    // (0.84317964, 0.0593377) @0.022919051 /(0,0.044251163)
-    // (0.84343404, 0.059007037) @0.026581217 /(0,0.044251163)
-    // (0.84343404, 0.058841676) @0.032242313 /(0,0.044251163)
-    // (0.84343404, 0.058758996) @0.03665217 /(0,0.044251163)
-    // (0.8434976, 0.058676373) @0.03881895 /(0,0.044251163)
-    // (0.8435612, 0.058593694) @0.039810788 /(0,0.044251163)
-    // (0.8435612, 0.058511015) @0.040283818 /(0,0.044251163)
-    // (0.8436248, 0.058345653) @0.04043641 /(0,0.044251163)
-    // (0.843752, 0.058262974) @0.0402533 /(0,0.044251163)
-    // (0.84394276, 0.05818035) @0.039658196 /(0,0.044251163)
-    // (0.84406996, 0.05801499) @0.038635843 /(0,0.044251163)
-    // (0.8443243, 0.05793231) @0.03666743 /(0,0.044251163)
-    // (0.8446422, 0.057684325) @0.032242313 /(0,0.044251163)
-    // (0.8450238, 0.057518966) @0.025680933 /(0,0.044251163)
-    // (0.8445787, 0.058345653) @0.018753339 /(0,0.044251163)
-    // (0.8450874, 0.058262974) @0.00010681315 /(0,0.044251163)
-
-    let mut smile = Stroke::new();
-    smile.set_points_and_pressure(&[
-        ((1166.0565, 794.0844).into(), 1298),
-        ((1166.1459, 793.9952).into(), 1350),
-        ((1166.2351, 793.8166).into(), 1389),
-        ((1166.2351, 793.7273).into(), 1406),
-        ((1166.1459, 793.4595).into(), 1417),
-        ((1166.1459, 793.3702).into(), 1430),
-        ((1166.1459, 793.3702).into(), 1452),
-        ((1166.0565, 793.3702).into(), 1497),
-        ((1165.9673, 793.4595).into(), 1574),
-        ((1165.9673, 793.4595).into(), 1690),
-        ((1165.9673, 793.5487).into(), 1838),
-        ((1165.878, 793.5487).into(), 1969),
-        ((1165.7887, 793.7273).into(), 2036),
-        ((1165.6995, 793.9952).into(), 2052),
-        ((1165.5209, 794.1737).into(), 2056),
-        ((1165.4315, 794.4416).into(), 2061),
-        ((1165.3423, 794.7987).into(), 2061),
-        ((1165.3423, 795.1558).into(), 2051),
-        ((1165.253, 795.51294).into(), 2033),
-        ((1165.1637, 795.95935).into(), 2016),
-        ((1165.1637, 796.3165).into(), 2005),
-        ((1165.253, 796.67365).into(), 1999),
-        ((1165.253, 796.94147).into(), 1994),
-        ((1165.4315, 797.20935).into(), 1996),
-        ((1165.6101, 797.56647).into(), 1992),
-        ((1165.6995, 797.74506).into(), 1982),
-        ((1165.9673, 798.0129).into(), 1988),
-        ((1166.2351, 798.37).into(), 2016),
-        ((1166.6815, 798.81647).into(), 2052),
-        ((1167.4851, 799.3521).into(), 2084),
-        ((1168.1101, 799.7986).into(), 2109),
-        ((1168.8243, 800.1557).into(), 2124),
-        ((1169.4493, 800.5128).into(), 2130),
-        ((1170.2529, 800.78064).into(), 2125),
-        ((1171.1458, 800.9592).into(), 2114),
-        ((1171.9493, 801.0485).into(), 2110),
-        ((1172.9315, 801.1378).into(), 2112),
-        ((1174.0029, 801.0485).into(), 2108),
-        ((1175.1636, 800.78064).into(), 2096),
-        ((1176.3243, 800.4235).into(), 2089),
-        ((1177.485, 799.9771).into(), 2084),
-        ((1178.6458, 799.4414).into(), 2099),
-        ((1179.8064, 798.7272).into(), 2121),
-        ((1180.8778, 797.9236).into(), 2138),
-        ((1181.86, 797.20935).into(), 2149),
-        ((1182.842, 796.4058).into(), 2163),
-        ((1184.0028, 795.60223).into(), 2183),
-        ((1184.717, 794.888).into(), 2204),
-        ((1185.1635, 794.3523).into(), 2225),
-        ((1185.6992, 793.8166).into(), 2224),
-        ((1185.967, 793.3702).into(), 2221),
-        ((1186.1456, 793.1023).into(), 2230),
-        ((1186.3242, 793.01306).into(), 2243),
-        ((1186.3242, 792.8345).into(), 2267),
-        ((1186.3242, 792.6559).into(), 2309),
-        ((1186.2349, 792.47736).into(), 2343),
-        ((1186.2349, 792.2095).into(), 2358),
-        ((1186.2349, 791.85236).into(), 2355),
-        ((1186.1456, 791.49524).into(), 2321),
-        ((1186.1456, 791.13806).into(), 2244),
-        ((1186.1456, 790.95953).into(), 2102),
-        ((1186.1456, 790.87024).into(), 1860),
-        ((1186.0563, 790.87024).into(), 1588),
-        ((1185.967, 790.95953).into(), 1444),
-        ((1186.8599, 790.24524).into(), 258),
-    ]);
-    // (0.83052456, 0.068596676) @0.01980621 /(0.0030518044,0.053406578)
-    // (0.8305882, 0.06851406) @0.02059968 /(0.0030518044,0.053406578)
-    // (0.83065176, 0.06834869) @0.021194782 /(0.0030518044,0.053406578)
-    // (0.83065176, 0.06826601) @0.021454185 /(0.0030518044,0.053406578)
-    // (0.8305882, 0.06801803) @0.021622034 /(0.0030518044,0.053406578)
-    // (0.8305882, 0.06793535) @0.021820402 /(0.0030518044,0.053406578)
-    // (0.8305882, 0.06793535) @0.0221561 /(0.0030518044,0.053406578)
-    // (0.83052456, 0.06793535) @0.022842756 /(0.0030518044,0.053406578)
-    // (0.830461, 0.06801803) @0.0240177 /(0.0030518044,0.053406578)
-    // (0.830461, 0.06801803) @0.025787747 /(0.0030518044,0.053406578)
-    // (0.830461, 0.06810065) @0.028046083 /(0.0030518044,0.053406578)
-    // (0.8303975, 0.06810065) @0.030045014 /(0.0030518044,0.053406578)
-    // (0.8303338, 0.06826601) @0.03106737 /(0.0030518044,0.053406578)
-    // (0.8302703, 0.06851406) @0.031311512 /(0.0030518044,0.053406578)
-    // (0.8301431, 0.068679355) @0.03137255 /(0.0030518044,0.053406578)
-    // (0.83007944, 0.0689274) @0.031448845 /(0.0030518044,0.053406578)
-    // (0.8300159, 0.069258064) @0.031448845 /(0.0030518044,0.053406578)
-    // (0.8300159, 0.06958873) @0.031296253 /(0.0030518044,0.053406578)
-    // (0.8299523, 0.069919385) @0.031021591 /(0.0030518044,0.053406578)
-    // (0.8298887, 0.07033273) @0.030762188 /(0.0030518044,0.053406578)
-    // (0.8298887, 0.07066345) @0.03059434 /(0.0030518044,0.053406578)
-    // (0.8299523, 0.07099412) @0.030502785 /(0.0030518044,0.053406578)
-    // (0.8299523, 0.0712421) @0.03042649 /(0.0030518044,0.053406578)
-    // (0.83007944, 0.07149014) @0.030457009 /(0.0030518044,0.053406578)
-    // (0.83020663, 0.0718208) @0.030395972 /(0.0030518044,0.053406578)
-    // (0.8302703, 0.07198616) @0.030243382 /(0.0030518044,0.053406578)
-    // (0.830461, 0.07223415) @0.030334936 /(0.0030518044,0.053406578)
-    // (0.83065176, 0.07256481) @0.030762188 /(0.0030518044,0.053406578)
-    // (0.83096975, 0.07297821) @0.031311512 /(0.0030518044,0.053406578)
-    // (0.8315421, 0.073474176) @0.0317998 /(0.0030518044,0.053406578)
-    // (0.83198726, 0.07388758) @0.032181278 /(0.0030518044,0.053406578)
-    // (0.832496, 0.07421824) @0.032410163 /(0.0030518044,0.053406578)
-    // (0.8329411, 0.07454891) @0.032501716 /(0.0030518044,0.053406578)
-    // (0.8335135, 0.074796885) @0.032425422 /(0.0030518044,0.053406578)
-    // (0.8341494, 0.07496225) @0.03225757 /(0.0030518044,0.053406578)
-    // (0.83472174, 0.07504493) @0.032196537 /(0.0030518044,0.053406578)
-    // (0.8354213, 0.07512761) @0.032227054 /(0.0030518044,0.053406578)
-    // (0.83618444, 0.07504493) @0.03216602 /(0.0030518044,0.053406578)
-    // (0.8370111, 0.074796885) @0.03198291 /(0.0030518044,0.053406578)
-    // (0.8378379, 0.07446623) @0.0318761 /(0.0030518044,0.053406578)
-    // (0.83866453, 0.07405288) @0.0317998 /(0.0030518044,0.053406578)
-    // (0.83949125, 0.073556855) @0.032028686 /(0.0030518044,0.05035477)
-    // (0.84031796, 0.07289553) @0.032364387 /(0.0030518044,0.05035477)
-    // (0.8410811, 0.07215147) @0.03262379 /(0.0030518044,0.05035477)
-    // (0.8417806, 0.07149014) @0.032791637 /(0.0030518044,0.05035477)
-    // (0.84248006, 0.07074613) @0.033005264 /(0.0030518044,0.05035477)
-    // (0.84330684, 0.07000207) @0.033310443 /(0.0030518044,0.05035477)
-    // (0.84381557, 0.06934074) @0.033630885 /(0.0030518044,0.05035477)
-    // (0.8441335, 0.06884472) @0.033951323 /(0.0030518044,0.05035477)
-    // (0.8445151, 0.06834869) @0.033936065 /(0.0030518044,0.05035477)
-    // (0.8447059, 0.06793535) @0.03389029 /(0.0030518044,0.05035477)
-    // (0.8448331, 0.06768731) @0.034027617 /(0.0030518044,0.05035477)
-    // (0.8449603, 0.06760468) @0.034225985 /(0.0030518044,0.05035477)
-    // (0.8449603, 0.067439325) @0.034592204 /(0.0030518044,0.05035477)
-    // (0.8449603, 0.06727397) @0.03523308 /(0.0030518044,0.05035477)
-    // (0.8448966, 0.06710866) @0.035751887 /(0.0030518044,0.05035477)
-    // (0.8448966, 0.06686062) @0.035980772 /(0.0030518044,0.05035477)
-    // (0.8448966, 0.06652996) @0.035934996 /(0.0030518044,0.05035477)
-    // (0.8448331, 0.066199295) @0.03541619 /(0.0030518044,0.05035477)
-    // (0.8448331, 0.06586858) @0.034241244 /(0.0030518044,0.04882887)
-    // (0.8448331, 0.06570327) @0.032074463 /(0.0030518044,0.04882887)
-    // (0.8448331, 0.065620594) @0.028381782 /(0.0030518044,0.04882887)
-    // (0.8447694, 0.065620594) @0.024231328 /(0.0030518044,0.04882887)
-    // (0.8447059, 0.06570327) @0.022034029 /(0.0030518044,0.04882887)
-    // (0.8453418, 0.065041885) @0.0039368276 /(0.0030518044,0.04882887)
-
-    left_eye.set_color(c);
-    right_eye.set_color(c);
-    smile.set_color(c);
-
-    left_eye.set_step(step);
-    right_eye.set_step(step);
-    smile.set_step(step);
-
-    vec![left_eye, right_eye, smile].into()
-}
-
 fn loop_companion(app: &mut appctx::ApplicationContext) {
-    let mut strokes = strokes_smileyface(color::BLACK, Duration::from_millis(2));
+    let mut strokes = smileyface(color::BLACK, Duration::from_millis(2));
     let (xmin, xmax, ymin, ymax) = strokes.translation_boundaries();
     let mut rng = rand::thread_rng();
 
@@ -1080,7 +664,7 @@ fn main() {
     app.add_element(
         "blurToggle",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1155, y: 370 },
+            position: (1155, 370).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_blur_canvas),
             inner: UIElement::Text {
@@ -1096,7 +680,7 @@ fn main() {
     app.add_element(
         "invertToggle",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1247, y: 370 },
+            position: (1247, 370).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_invert_canvas),
             inner: UIElement::Text {
@@ -1113,7 +697,7 @@ fn main() {
     app.add_element(
         "saveButton",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 960, y: 440 },
+            position: (960, 440).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_save_canvas),
             inner: UIElement::Text {
@@ -1129,7 +713,7 @@ fn main() {
     app.add_element(
         "restoreButton",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1080, y: 440 },
+            position: (1080, 440).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_load_canvas),
             inner: UIElement::Text {
@@ -1145,7 +729,7 @@ fn main() {
     app.add_element(
         "undoButton",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1200, y: 440 },
+            position: (1200, 440).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_undo),
             inner: UIElement::Text {
@@ -1162,7 +746,7 @@ fn main() {
     app.add_element(
         "touchMode",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 960, y: 510 },
+            position: (960, 510).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_change_touchdraw_mode),
             inner: UIElement::Text {
@@ -1177,7 +761,7 @@ fn main() {
     app.add_element(
         "touchModeIndicator",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1210, y: 510 },
+            position: (1210, 510).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: None,
             inner: UIElement::Text {
@@ -1194,7 +778,7 @@ fn main() {
     app.add_element(
         "colorToggle",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 960, y: 580 },
+            position: (960, 580).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_toggle_eraser),
             inner: UIElement::Text {
@@ -1209,12 +793,12 @@ fn main() {
     app.add_element(
         "colorIndicator",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1210, y: 580 },
+            position: (1210, 580).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: None,
             inner: UIElement::Text {
                 foreground: color::BLACK,
-                text: G_DRAW_MODE.load(Ordering::Relaxed).color_as_string(),
+                text: G_DRAW_MODE.load(Ordering::Relaxed).to_string(),
                 scale: 40.0,
                 border_px: 0,
             },
@@ -1226,7 +810,7 @@ fn main() {
     app.add_element(
         "decreaseSizeSkip",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 960, y: 670 },
+            position: (960, 670).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, -10);
@@ -1243,7 +827,7 @@ fn main() {
     app.add_element(
         "decreaseSize",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1030, y: 670 },
+            position: (1030, 670).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, -1);
@@ -1260,7 +844,7 @@ fn main() {
     app.add_element(
         "displaySize",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1080, y: 670 },
+            position: (1080, 670).into(),
             refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -1274,7 +858,7 @@ fn main() {
     app.add_element(
         "increaseSize",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1240, y: 670 },
+            position: (1240, 670).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, 1);
@@ -1291,7 +875,7 @@ fn main() {
     app.add_element(
         "increaseSizeSkip",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1295, y: 670 },
+            position: (1295, 670).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, 10);
@@ -1309,7 +893,7 @@ fn main() {
     app.add_element(
         "exitToXochitl",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 30, y: 50 },
+            position: (30, 50).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: None,
             inner: UIElement::Text {
@@ -1325,7 +909,7 @@ fn main() {
     app.add_element(
         "tooltipLeft",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 15, y: 1850 },
+            position: (15, 1850).into(),
             refresh: UIConstraintRefresh::Refresh,
             onclick: None,
             inner: UIElement::Text {
@@ -1340,7 +924,7 @@ fn main() {
     app.add_element(
         "tooltipMiddle",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 565, y: 1850 },
+            position: (565, 1850).into(),
             refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -1354,7 +938,7 @@ fn main() {
     app.add_element(
         "tooltipRight",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 1112, y: 1850 },
+            position: (1112, 1850).into(),
             refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -1371,7 +955,7 @@ fn main() {
     app.add_element(
         "battery",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 30, y: 215 },
+            position: (30, 215).into(),
             refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
                 foreground: color::BLACK,
@@ -1392,7 +976,7 @@ fn main() {
     app.add_element(
         "time",
         UIElementWrapper {
-            position: cgmath::Point2 { x: 30, y: 150 },
+            position: (30, 150).into(),
             refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
                 foreground: color::BLACK,
