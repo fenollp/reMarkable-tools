@@ -14,6 +14,7 @@ fmt:
 	cargo fmt
 
 lint: fmt
+	cross clippy --target=$(TARGET)
 
 update:
 	cargo update
