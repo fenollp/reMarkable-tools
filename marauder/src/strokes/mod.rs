@@ -1,5 +1,5 @@
 extern crate libremarkable;
-use libremarkable::appctx;
+use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
@@ -47,10 +47,11 @@ impl Stroke {
     }
 
     pub fn invert_color(&mut self) {
-        match self.color {
-            color::WHITE => self.color = color::BLACK,
-            _ => self.color = color::BLACK,
-        }
+        let c = match self.color {
+            color::BLACK => color::WHITE,
+            _ => color::BLACK,
+        };
+        self.color = c;
     }
 
     pub fn push_back(&mut self, p: cgmath::Point2<f32>, pressure: u16) {
@@ -68,13 +69,16 @@ impl Stroke {
         }
     }
 
-    pub fn draw(&self, app: &mut appctx::ApplicationContext) {
-        let mult = self.tip_size as f32;
+    pub fn pointwidth(&self, pressure: u16) -> f32 {
+        (self.tip_size as f32) * (pressure as f32) / 2048.
+    }
+
+    pub fn draw(&self, app: &mut ApplicationContext) {
         for (start, ctrl, end) in self.points_and_pressure.iter().tuple_windows() {
             let points = vec![start, ctrl, end];
             let radii: Vec<f32> = points
                 .iter()
-                .map(|pandp| ((mult * (pandp.1 as f32) / 2048.) / 2.))
+                .map(|(_, pressure)| (self.pointwidth(*pressure) / 2.))
                 .collect();
             // calculate control points
             let start_point = points[2].0.midpoint(points[1].0);
@@ -128,29 +132,31 @@ impl From<Vec<Stroke>> for Strokes {
 }
 
 impl Strokes {
-    pub fn draw(&self, app: &mut appctx::ApplicationContext) {
+    pub fn draw(&self, app: &mut ApplicationContext) {
         for stroke in self.strokes.iter() {
             stroke.draw(app);
             sleep(2 * stroke.step);
         }
     }
 
-    fn approximate_rect(&self) -> (f32, f32, f32, f32) {
-        let (mut xmin, mut xmax) = (canvas_width(), 0.);
-        let (mut ymin, mut ymax) = (canvas_height(), 0.);
+    fn region(&self) -> (f32, f32, f32, f32) {
+        let (mut xmin, mut xmax) = (f32::MAX, f32::MIN);
+        let (mut ymin, mut ymax) = (f32::MAX, f32::MIN);
         for stroke in self.strokes.iter() {
-            for (p, _) in stroke.points_and_pressure.iter() {
-                xmin = if p.x < xmin { p.x } else { xmin };
-                xmax = if p.x > xmax { p.x } else { xmax };
-                ymin = if p.y < ymin { p.y } else { ymin };
-                ymax = if p.y > ymax { p.y } else { ymax };
+            for (xy, p) in stroke.points_and_pressure.iter() {
+                let radi = stroke.pointwidth(*p) / 2.;
+                let (x, y) = (abs_add(xy.x, radi), abs_add(xy.y, radi));
+                xmin = if x < xmin { x } else { xmin };
+                xmax = if x > xmax { x } else { xmax };
+                ymin = if y < ymin { y } else { ymin };
+                ymax = if y > ymax { y } else { ymax };
             }
         }
         (xmin, xmax, ymin, ymax)
     }
 
     pub fn translation_boundaries(&self) -> (f32, f32, f32, f32) {
-        let (xmin, xmax, ymin, ymax) = self.approximate_rect();
+        let (xmin, xmax, ymin, ymax) = self.region();
         let left = (canvas_width()) - xmin;
         let right = (canvas_width()) - xmax;
         let top = (canvas_height()) - ymin;
@@ -172,4 +178,9 @@ impl Strokes {
             stroke.translate((dx, dy));
         }
     }
+}
+
+fn abs_add(p: f32, q: f32) -> f32 {
+    let sign = if p.is_sign_negative() { -1. } else { 1. };
+    sign * (p.abs() + q)
 }

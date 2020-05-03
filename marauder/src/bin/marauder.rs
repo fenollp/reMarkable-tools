@@ -7,6 +7,7 @@ extern crate log;
 extern crate env_logger;
 
 extern crate libremarkable;
+use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
@@ -18,7 +19,7 @@ use libremarkable::input::{gpio, multitouch, wacom, InputDevice};
 use libremarkable::ui_extensions::element::{
     UIConstraintRefresh, UIElement, UIElementHandle, UIElementWrapper,
 };
-use libremarkable::{appctx, battery, image};
+use libremarkable::{battery, image};
 
 extern crate chrono;
 use chrono::{DateTime, Local};
@@ -70,14 +71,14 @@ lazy_static! {
 // ## Button Handlers
 // ####################
 
-fn on_undo(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+fn on_undo(app: &mut ApplicationContext, _element: UIElementHandle) {
     let mut wacom_undo = WACOM_UNDO.lock().unwrap();
     wacom_undo.invert_color();
     wacom_undo.draw(app);
     wacom_undo.clear();
 }
 
-fn on_save_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+fn on_save_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
     let framebuffer = app.get_framebuffer_ref();
     match framebuffer.dump_region(CANVAS_REGION) {
         Err(err) => error!("Failed to dump buffer: {0}", err),
@@ -92,7 +93,7 @@ fn on_save_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandl
     };
 }
 
-fn on_zoom_out(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+fn on_zoom_out(app: &mut ApplicationContext, _element: UIElementHandle) {
     let framebuffer = app.get_framebuffer_ref();
     match framebuffer.dump_region(CANVAS_REGION) {
         Err(err) => error!("Failed to dump buffer: {0}", err),
@@ -136,7 +137,7 @@ fn on_zoom_out(app: &mut appctx::ApplicationContext, _element: UIElementHandle) 
     };
 }
 
-fn on_blur_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+fn on_blur_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
     let framebuffer = app.get_framebuffer_ref();
     match framebuffer.dump_region(CANVAS_REGION) {
         Err(err) => error!("Failed to dump buffer: {0}", err),
@@ -168,7 +169,7 @@ fn on_blur_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandl
     };
 }
 
-fn on_invert_canvas(app: &mut appctx::ApplicationContext, element: UIElementHandle) {
+fn on_invert_canvas(app: &mut ApplicationContext, element: UIElementHandle) {
     let framebuffer = app.get_framebuffer_ref();
     match framebuffer.dump_region(CANVAS_REGION) {
         Err(err) => error!("Failed to dump buffer: {0}", err),
@@ -197,7 +198,7 @@ fn on_invert_canvas(app: &mut appctx::ApplicationContext, element: UIElementHand
     on_toggle_eraser(app, element);
 }
 
-fn on_load_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandle) {
+fn on_load_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
     match *SAVED_CANVAS.lock().unwrap() {
         None => {}
         Some(ref compressed_state) => {
@@ -222,7 +223,7 @@ fn on_load_canvas(app: &mut appctx::ApplicationContext, _element: UIElementHandl
     };
 }
 
-fn on_toggle_eraser(app: &mut appctx::ApplicationContext, _: UIElementHandle) {
+fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
     let (new_mode, name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
         DrawMode::Erase(s) => (DrawMode::Draw(s), "Black".to_owned()),
         DrawMode::Draw(s) => (DrawMode::Erase(s), "White".to_owned()),
@@ -236,7 +237,7 @@ fn on_toggle_eraser(app: &mut appctx::ApplicationContext, _: UIElementHandle) {
     app.draw_element("colorIndicator");
 }
 
-fn on_change_touchdraw_mode(app: &mut appctx::ApplicationContext, _: UIElementHandle) {
+fn on_change_touchdraw_mode(app: &mut ApplicationContext, _: UIElementHandle) {
     let new_val = G_TOUCH_MODE.load(Ordering::Relaxed).toggle();
     G_TOUCH_MODE.store(new_val, Ordering::Relaxed);
 
@@ -253,7 +254,7 @@ fn on_change_touchdraw_mode(app: &mut appctx::ApplicationContext, _: UIElementHa
 // ## Miscellaneous
 // ####################
 
-fn change_brush_width(app: &mut appctx::ApplicationContext, delta: i32) {
+fn change_brush_width(app: &mut ApplicationContext, delta: i32) {
     let current = G_DRAW_MODE.load(Ordering::Relaxed);
     let current_size = current.get_size() as i32;
     let proposed_size = current_size + delta;
@@ -277,7 +278,7 @@ fn change_brush_width(app: &mut appctx::ApplicationContext, delta: i32) {
     app.draw_element("displaySize");
 }
 
-fn loop_update_topbar(app: &mut appctx::ApplicationContext, millis: u64) {
+fn loop_update_topbar(app: &mut ApplicationContext, millis: u64) {
     let time_label = app.get_element_by_name("time").unwrap();
     let battery_label = app.get_element_by_name("battery").unwrap();
     loop {
@@ -304,7 +305,7 @@ fn loop_update_topbar(app: &mut appctx::ApplicationContext, millis: u64) {
     }
 }
 
-fn loop_companion(app: &mut appctx::ApplicationContext) {
+fn loop_companion(app: &mut ApplicationContext) {
     let mut strokes = smileyface(color::BLACK, Duration::from_millis(2));
     let (xmin, xmax, ymin, ymax) = strokes.translation_boundaries();
     let mut rng = rand::thread_rng();
@@ -369,7 +370,7 @@ impl fmt::Display for NormPoint2 {
 // ## Input Handlers
 // ####################
 
-fn on_wacom_input(app: &mut appctx::ApplicationContext, input: wacom::WacomEvent) {
+fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     match input {
         wacom::WacomEvent::Draw {
             position,
@@ -487,7 +488,7 @@ fn on_wacom_input(app: &mut appctx::ApplicationContext, input: wacom::WacomEvent
     };
 }
 
-fn on_touch_handler(app: &mut appctx::ApplicationContext, input: multitouch::MultitouchEvent) {
+fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
     let framebuffer = app.get_framebuffer_ref();
     if let multitouch::MultitouchEvent::Touch {
         gesture_seq: _,
@@ -559,7 +560,7 @@ fn on_touch_handler(app: &mut appctx::ApplicationContext, input: multitouch::Mul
     }
 }
 
-fn on_button_press(app: &mut appctx::ApplicationContext, input: gpio::GPIOEvent) {
+fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     let (btn, new_state) = match input {
         gpio::GPIOEvent::Press { button } => (button, true),
         gpio::GPIOEvent::Unpress { button } => (button, false),
@@ -622,8 +623,8 @@ fn main() {
 
     // Takes callback functions as arguments
     // They are called with the event and the &mut framebuffer
-    let mut app: appctx::ApplicationContext =
-        appctx::ApplicationContext::new(on_button_press, on_wacom_input, on_touch_handler);
+    let mut app: ApplicationContext =
+        ApplicationContext::new(on_button_press, on_wacom_input, on_touch_handler);
 
     // Alternatively we could have called `app.execute_lua("fb.clear()")`
     app.clear(true);
