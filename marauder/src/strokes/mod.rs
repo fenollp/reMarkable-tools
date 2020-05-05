@@ -139,7 +139,7 @@ impl Strokes {
         }
     }
 
-    fn region(&self) -> (f32, f32, f32, f32) {
+    fn bounding_box(&self) -> (f32, f32, f32, f32) {
         let (mut xmin, mut xmax) = (f32::MAX, f32::MIN);
         let (mut ymin, mut ymax) = (f32::MAX, f32::MIN);
         for stroke in self.strokes.iter() {
@@ -150,13 +150,17 @@ impl Strokes {
                 xmax = if x > xmax { x } else { xmax };
                 ymin = if y < ymin { y } else { ymin };
                 ymax = if y > ymax { y } else { ymax };
+                // let mut min_y = pos.y.floor().max(0.0) as u32;
+                // let mut max_y = pos.y.ceil().max(0.0) as u32;
+                // let mut min_x = pos.x.floor().max(0.0) as u32;
+                // let mut max_x = pos.x.ceil().max(0.0) as u32;
             }
         }
         (xmin, xmax, ymin, ymax)
     }
 
     pub fn translation_boundaries(&self) -> (f32, f32, f32, f32) {
-        let (xmin, xmax, ymin, ymax) = self.region();
+        let (xmin, xmax, ymin, ymax) = self.bounding_box();
         let left = (canvas_width()) - xmin;
         let right = (canvas_width()) - xmax;
         let top = (canvas_height()) - ymin;
@@ -184,3 +188,47 @@ fn abs_add(p: f32, q: f32) -> f32 {
     let sign = if p.is_sign_negative() { -1. } else { 1. };
     sign * (p.abs() + q)
 }
+
+// struct NormPoint2 {
+//     pos_x: f32,
+//     pos_y: f32,
+//     pressure: f32,
+//     tilt_x: f32,
+//     tilt_y: f32,
+// }
+// fn from_draw_event(
+//     position: cgmath::Point2<f32>,
+//     pressure: u16,
+//     tilt: cgmath::Vector2<u16>,
+// ) -> NormPoint2 {
+//     let x = (position.x - (CANVAS_REGION.left as f32)) / (CANVAS_REGION.width as f32);
+//     let y = (position.y - (CANVAS_REGION.top as f32)) / (CANVAS_REGION.height as f32);
+//     let x = if x < 0.0 { 0.0 } else { x };
+//     let x = if x > 1.0 { 1.0 } else { x };
+//     let y = if y < 0.0 { 0.0 } else { y };
+//     let y = if y > 1.0 { 1.0 } else { y };
+//     NormPoint2 {
+//         pos_x: x,
+//         pos_y: y,
+//         //
+//         pressure: (pressure as f32) / (u16::MAX as f32),
+//         // tilt
+//         tilt_x: (tilt.x as f32) / (u16::MAX as f32),
+//         tilt_y: (tilt.y as f32) / (u16::MAX as f32),
+//     }
+// }
+// impl fmt::Display for NormPoint2 {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "({}, {}) @{} /({},{})",
+//             self.pos_x,
+//             self.pos_y,
+//             //
+//             self.pressure,
+//             //
+//             self.tilt_x,
+//             self.tilt_y,
+//         )
+//     }
+// }

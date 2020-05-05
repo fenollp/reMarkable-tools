@@ -31,7 +31,6 @@ extern crate rand;
 use rand::Rng;
 
 use std::collections::VecDeque;
-use std::fmt;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -40,8 +39,7 @@ use std::time::Duration;
 
 use marauder::modes::draw::DrawMode;
 use marauder::modes::touch::TouchMode;
-use marauder::shapes::smileyface::smileyface;
-use marauder::strokes::Stroke;
+use marauder::shapes::*;
 
 // This region will have the following size at rest:
 //   raw: 5896 kB
@@ -49,7 +47,7 @@ use marauder::strokes::Stroke;
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: 720,
     left: 0,
-    height: 1080,
+    height: 1080 + 50, //1850? 1900? !1872
     width: 1404,
 };
 
@@ -60,30 +58,58 @@ lazy_static! {
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
-    static ref WACOM_UNDO: Mutex<Stroke> = Mutex::new(Stroke::default());
-    static ref WACOM_UNDO_TICK: AtomicBool = AtomicBool::new(true);
-    static ref G_COUNTER: Mutex<u32> = Mutex::new(0);
-    static ref LAST_REFRESHED_CANVAS_RECT: Atomic<mxcfb_rect> = Atomic::new(mxcfb_rect::invalid());
+    static ref DRAWING: AtomicBool = AtomicBool::new(false);
     static ref SAVED_CANVAS: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
+    static ref SAVED_CANVAS_PREV: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
 }
 
 // ####################
 // ## Button Handlers
 // ####################
 
-fn on_undo(app: &mut ApplicationContext, _element: UIElementHandle) {
-    let mut wacom_undo = WACOM_UNDO.lock().unwrap();
-    wacom_undo.invert_color();
-    wacom_undo.draw(app);
-    wacom_undo.clear();
+fn on_undo(app: &mut ApplicationContext, _: UIElementHandle) {
+    let mut undone = false;
+    {
+        let mut prev = SAVED_CANVAS_PREV.lock().unwrap();
+        if let Some(ref compressed_state) = *prev {
+            let decompressed = compressed_state.decompress();
+            let framebuffer = app.get_framebuffer_ref();
+            // TODO: restore & refresh only the subset region that was just drawn onto
+            match framebuffer.restore_region(CANVAS_REGION, &decompressed) {
+                Err(e) => error!("Error while restoring region: {0}", e),
+                Ok(_) => {
+                    framebuffer.partial_refresh(
+                        &CANVAS_REGION,
+                        PartialRefreshMode::Async,
+                        waveform_mode::WAVEFORM_MODE_GC16_FAST,
+                        display_temp::TEMP_USE_REMARKABLE_DRAW,
+                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                        0,
+                        false,
+                    );
+                    *prev = None;
+                    *SAVED_CANVAS.lock().unwrap() = None;
+                    undone = true;
+                }
+            };
+        }
+    }
+    // Seprate scopes to avoid deadlocks
+    if undone {
+        save_canvas(app);
+    }
 }
 
-fn on_save_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
+fn save_canvas(app: &mut ApplicationContext) {
     let framebuffer = app.get_framebuffer_ref();
     match framebuffer.dump_region(CANVAS_REGION) {
         Err(err) => error!("Failed to dump buffer: {0}", err),
         Ok(buff) => {
             let mut hist = SAVED_CANVAS.lock().unwrap();
+            if let Some(ref compressed_state) = *hist {
+                let mut prev = SAVED_CANVAS_PREV.lock().unwrap();
+                *prev = Some((*compressed_state).clone());
+            }
             *hist = Some(storage::CompressedCanvasState::new(
                 buff.as_slice(),
                 CANVAS_REGION.height,
@@ -198,56 +224,31 @@ fn on_invert_canvas(app: &mut ApplicationContext, element: UIElementHandle) {
     on_toggle_eraser(app, element);
 }
 
-fn on_load_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
-    match *SAVED_CANVAS.lock().unwrap() {
-        None => {}
-        Some(ref compressed_state) => {
-            let framebuffer = app.get_framebuffer_ref();
-            let decompressed = compressed_state.decompress();
-
-            match framebuffer.restore_region(CANVAS_REGION, &decompressed) {
-                Err(e) => error!("Error while restoring region: {0}", e),
-                Ok(_) => {
-                    framebuffer.partial_refresh(
-                        &CANVAS_REGION,
-                        PartialRefreshMode::Async,
-                        waveform_mode::WAVEFORM_MODE_GC16_FAST,
-                        display_temp::TEMP_USE_REMARKABLE_DRAW,
-                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-                        0,
-                        false,
-                    );
-                }
-            };
-        }
-    };
-}
-
 fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
-    let (new_mode, name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
-        DrawMode::Erase(s) => (DrawMode::Draw(s), "Black".to_owned()),
-        DrawMode::Draw(s) => (DrawMode::Erase(s), "White".to_owned()),
+    let (new_mode, next_name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
+        DrawMode::Erase(s) => (DrawMode::Draw(s), "Switch to BLACK".to_owned()),
+        DrawMode::Draw(s) => (DrawMode::Erase(s), "Switch to WHITE".to_owned()),
     };
     G_DRAW_MODE.store(new_mode, Ordering::Relaxed);
 
-    let indicator = app.get_element_by_name("colorIndicator");
-    if let UIElement::Text { ref mut text, .. } = indicator.unwrap().write().inner {
-        *text = name;
+    let element = app.get_element_by_name("colorToggle").unwrap();
+    if let UIElement::Text { ref mut text, .. } = element.write().inner {
+        *text = next_name;
     }
-    app.draw_element("colorIndicator");
+    app.draw_element("colorToggle");
 }
 
-fn on_change_touchdraw_mode(app: &mut ApplicationContext, _: UIElementHandle) {
+fn on_tap_touchdraw_mode(app: &mut ApplicationContext, _: UIElementHandle) {
     let new_val = G_TOUCH_MODE.load(Ordering::Relaxed).toggle();
     G_TOUCH_MODE.store(new_val, Ordering::Relaxed);
 
-    let indicator = app.get_element_by_name("touchModeIndicator");
-    if let UIElement::Text { ref mut text, .. } = indicator.unwrap().write().inner {
+    let element = app.get_element_by_name("touchdrawMode").unwrap();
+    if let UIElement::Text { ref mut text, .. } = element.write().inner {
         *text = new_val.to_string();
     }
     // Make sure you aren't trying to draw the element while you are holding a write lock.
     // It doesn't seem to cause a deadlock however it may cause higher lock contention.
-    app.draw_element("touchModeIndicator");
+    app.draw_element("touchdrawMode");
 }
 
 // ####################
@@ -278,35 +279,22 @@ fn change_brush_width(app: &mut ApplicationContext, delta: i32) {
     app.draw_element("displaySize");
 }
 
-fn loop_update_topbar(app: &mut ApplicationContext, millis: u64) {
-    let time_label = app.get_element_by_name("time").unwrap();
-    let battery_label = app.get_element_by_name("battery").unwrap();
+fn loop_update_battime(app: &mut ApplicationContext) {
+    let element = app.get_element_by_name("battime").unwrap();
     loop {
-        // Get the datetime
-        let dt: DateTime<Local> = Local::now();
-
-        if let UIElement::Text { ref mut text, .. } = time_label.write().inner {
-            *text = format!("{}", dt.format("%F %r"));
+        if let UIElement::Text { ref mut text, .. } = element.write().inner {
+            let now = (Local::now() as DateTime<Local>).format("%F %r");
+            let status = battery::human_readable_charging_status().unwrap();
+            let percents = battery::percentage().unwrap();
+            *text = format!("{}% ~ {:<80} {}", percents, status, now);
         }
-
-        if let UIElement::Text { ref mut text, .. } = battery_label.write().inner {
-            *text = format!(
-                "{0:<128}",
-                format!(
-                    "{0} — {1}%",
-                    battery::human_readable_charging_status().unwrap(),
-                    battery::percentage().unwrap()
-                )
-            );
-        }
-        app.draw_element("time");
-        app.draw_element("battery");
-        sleep(Duration::from_millis(millis));
+        app.draw_element("battime");
+        sleep(Duration::from_millis(37_000));
     }
 }
 
 fn loop_companion(app: &mut ApplicationContext) {
-    let mut strokes = smileyface(color::BLACK, Duration::from_millis(2));
+    let mut strokes = smileyface::abs(color::BLACK, Duration::from_millis(2));
     let (xmin, xmax, ymin, ymax) = strokes.translation_boundaries();
     let mut rng = rand::thread_rng();
 
@@ -316,53 +304,7 @@ fn loop_companion(app: &mut ApplicationContext) {
         let dy = rng.gen_range(ymin, ymax);
         strokes.translate((dx, dy));
         strokes.draw(app);
-        sleep(Duration::from_millis(1_000));
-    }
-}
-
-struct NormPoint2 {
-    pos_x: f32,
-    pos_y: f32,
-    pressure: f32,
-    tilt_x: f32,
-    tilt_y: f32,
-}
-impl NormPoint2 {
-    fn from_draw_event(
-        position: cgmath::Point2<f32>,
-        pressure: u16,
-        tilt: cgmath::Vector2<u16>,
-    ) -> NormPoint2 {
-        let x = (position.x - (CANVAS_REGION.left as f32)) / (CANVAS_REGION.width as f32);
-        let y = (position.y - (CANVAS_REGION.top as f32)) / (CANVAS_REGION.height as f32);
-        let x = if x < 0.0 { 0.0 } else { x };
-        let x = if x > 1.0 { 1.0 } else { x };
-        let y = if y < 0.0 { 0.0 } else { y };
-        let y = if y > 1.0 { 1.0 } else { y };
-        NormPoint2 {
-            pos_x: x,
-            pos_y: y,
-            //
-            pressure: (pressure as f32) / (u16::MAX as f32),
-            // tilt
-            tilt_x: (tilt.x as f32) / (u16::MAX as f32),
-            tilt_y: (tilt.y as f32) / (u16::MAX as f32),
-        }
-    }
-}
-impl fmt::Display for NormPoint2 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "({}, {}) @{} /({},{})",
-            self.pos_x,
-            self.pos_y,
-            //
-            self.pressure,
-            //
-            self.tilt_x,
-            self.tilt_y,
-        )
+        sleep(Duration::from_millis(100));
     }
 }
 
@@ -375,19 +317,16 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
         wacom::WacomEvent::Draw {
             position,
             pressure,
-            tilt,
+            tilt: _,
         } => {
-            debug!("{} {} {}", position.x, position.y, pressure);
-            debug!(
-                ">>> {}",
-                NormPoint2::from_draw_event(position, pressure, tilt)
-            );
+            // debug!("{} {} {}", position.x, position.y, pressure);
 
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
-            // This is so that we can click the buttons outside the canvas region
-            // normally meant to be touched with a finger using our stylus
+            // Outside of drawable region
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
+                // This is so that we can click the buttons outside the canvas region
+                // normally meant to be touched with a finger using our stylus
                 wacom_stack.clear();
                 if UNPRESS_OBSERVED.fetch_and(false, Ordering::Relaxed) {
                     let region = app
@@ -399,23 +338,17 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 return;
             }
 
+            if !DRAWING.load(Ordering::Relaxed) {
+                // Started drawing
+                DRAWING.store(true, Ordering::Relaxed);
+            }
+
             let (col, mult) = match G_DRAW_MODE.load(Ordering::Relaxed) {
                 DrawMode::Draw(s) => (color::BLACK, s),
                 DrawMode::Erase(s) => (color::WHITE, s * 3),
             };
 
             wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
-            {
-                let mut wacom_undo = WACOM_UNDO.lock().unwrap();
-                if WACOM_UNDO_TICK.load(Ordering::Relaxed) {
-                    WACOM_UNDO_TICK.store(false, Ordering::Relaxed);
-                    wacom_undo.clear();
-                    wacom_undo.set_color(col);
-                    wacom_undo.set_tip_size(mult);
-                }
-                wacom_undo.push_back(position.cast().unwrap(), pressure);
-            }
-
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = vec![
@@ -456,14 +389,19 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
         }
         wacom::WacomEvent::InstrumentChange { pen, state } => {
             match pen {
-                // Whether the pen is in range
                 wacom::WacomPen::ToolPen => {
-                    WACOM_IN_RANGE.store(state, Ordering::Relaxed);
+                    // Whether the pen is in range
+                    let in_range = state;
+                    WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                 }
-                // Whether the pen is actually making contact
                 wacom::WacomPen::Touch => {
-                    // Stop drawing when instrument has left the vicinity of the screen
-                    if !state {
+                    // Whether the pen is actually making contact
+                    let making_contact = state;
+                    if !making_contact {
+                        let was_just_drawing = DRAWING.fetch_and(false, Ordering::Relaxed);
+                        if was_just_drawing {
+                            save_canvas(app);
+                        }
                         let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                         wacom_stack.clear();
                     }
@@ -481,7 +419,6 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                 wacom_stack.clear();
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
-                WACOM_UNDO_TICK.store(true, Ordering::Relaxed);
             }
         }
         _ => {}
@@ -635,7 +572,6 @@ fn main() {
         UIElementWrapper {
             position: CANVAS_REGION.top_left().cast().unwrap() + cgmath::vec2(0, -2),
             refresh: UIConstraintRefresh::RefreshAndWait,
-            onclick: None,
             inner: UIElement::Region {
                 size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
                 border_px: 2,
@@ -645,83 +581,46 @@ fn main() {
         },
     );
 
-    // Zoom Out Button
     app.add_element(
         "zoomoutButton",
         UIElementWrapper {
             position: (960, 370).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_zoom_out),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Zoom Out".to_owned(),
-                scale: 45.0,
                 border_px: 5,
+                foreground: color::BLACK,
+                scale: 45.0,
             },
             ..Default::default()
         },
     );
-    // Blur Toggle
+
     app.add_element(
         "blurToggle",
         UIElementWrapper {
             position: (1155, 370).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_blur_canvas),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Blur".to_owned(),
-                scale: 45.0,
                 border_px: 5,
+                foreground: color::BLACK,
+                scale: 45.0,
             },
             ..Default::default()
         },
     );
-    // Invert Toggle
+
     app.add_element(
         "invertToggle",
         UIElementWrapper {
             position: (1247, 370).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_invert_canvas),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Invert".to_owned(),
-                scale: 45.0,
                 border_px: 5,
-            },
-            ..Default::default()
-        },
-    );
-
-    // Save/Restore Controls
-    app.add_element(
-        "saveButton",
-        UIElementWrapper {
-            position: (960, 440).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: Some(on_save_canvas),
-            inner: UIElement::Text {
                 foreground: color::BLACK,
-                text: "Save".to_owned(),
                 scale: 45.0,
-                border_px: 5,
-            },
-            ..Default::default()
-        },
-    );
-
-    app.add_element(
-        "restoreButton",
-        UIElementWrapper {
-            position: (1080, 440).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: Some(on_load_canvas),
-            inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: "Load".to_owned(),
-                scale: 45.0,
-                border_px: 5,
             },
             ..Default::default()
         },
@@ -730,97 +629,60 @@ fn main() {
     app.add_element(
         "undoButton",
         UIElementWrapper {
-            position: (1200, 440).into(),
-            refresh: UIConstraintRefresh::Refresh,
+            position: (30, 130).into(),
             onclick: Some(on_undo),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Undo".to_owned(),
-                scale: 45.0,
                 border_px: 5,
+                foreground: color::BLACK,
+                scale: 90.0,
             },
             ..Default::default()
         },
     );
 
-    // Touch Mode Toggle
     app.add_element(
-        "touchMode",
+        "touchdrawMode",
         UIElementWrapper {
             position: (960, 510).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: Some(on_change_touchdraw_mode),
+            onclick: Some(on_tap_touchdraw_mode),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Touch Mode".to_owned(),
-                scale: 45.0,
                 border_px: 5,
-            },
-            ..Default::default()
-        },
-    );
-    app.add_element(
-        "touchModeIndicator",
-        UIElementWrapper {
-            position: (1210, 510).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: None,
-            inner: UIElement::Text {
                 foreground: color::BLACK,
-                text: "None".to_owned(),
-                scale: 40.0,
-                border_px: 0,
+                scale: 45.0,
             },
             ..Default::default()
         },
     );
 
-    // Color Mode Toggle
     app.add_element(
         "colorToggle",
         UIElementWrapper {
             position: (960, 580).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(on_toggle_eraser),
             inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: "Draw Color".to_owned(),
-                scale: 45.0,
+                text: DrawMode::default().to_string(),
                 border_px: 5,
-            },
-            ..Default::default()
-        },
-    );
-    app.add_element(
-        "colorIndicator",
-        UIElementWrapper {
-            position: (1210, 580).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: None,
-            inner: UIElement::Text {
                 foreground: color::BLACK,
-                text: G_DRAW_MODE.load(Ordering::Relaxed).to_string(),
-                scale: 40.0,
-                border_px: 0,
+                scale: 45.0,
             },
             ..Default::default()
         },
     );
 
-    // Size Controls
     app.add_element(
         "decreaseSizeSkip",
         UIElementWrapper {
             position: (960, 670).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, -10);
             }),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "--".to_owned(),
                 scale: 90.0,
                 border_px: 5,
+                foreground: color::BLACK,
             },
             ..Default::default()
         },
@@ -829,15 +691,14 @@ fn main() {
         "decreaseSize",
         UIElementWrapper {
             position: (1030, 670).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, -1);
             }),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "-".to_owned(),
                 scale: 90.0,
                 border_px: 5,
+                foreground: color::BLACK,
             },
             ..Default::default()
         },
@@ -846,12 +707,11 @@ fn main() {
         "displaySize",
         UIElementWrapper {
             position: (1080, 670).into(),
-            refresh: UIConstraintRefresh::Refresh,
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: format!("size: {0}", G_DRAW_MODE.load(Ordering::Relaxed).get_size()),
-                scale: 45.0,
                 border_px: 0,
+                foreground: color::BLACK,
+                scale: 45.0,
             },
             ..Default::default()
         },
@@ -860,15 +720,14 @@ fn main() {
         "increaseSize",
         UIElementWrapper {
             position: (1240, 670).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, 1);
             }),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "+".to_owned(),
                 scale: 60.0,
                 border_px: 5,
+                foreground: color::BLACK,
             },
             ..Default::default()
         },
@@ -877,112 +736,27 @@ fn main() {
         "increaseSizeSkip",
         UIElementWrapper {
             position: (1295, 670).into(),
-            refresh: UIConstraintRefresh::Refresh,
             onclick: Some(|appctx, _| {
                 change_brush_width(appctx, 10);
             }),
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "++".to_owned(),
                 scale: 60.0,
                 border_px: 5,
+                foreground: color::BLACK,
             },
             ..Default::default()
         },
     );
 
     app.add_element(
-        "exitToXochitl",
+        "battime",
         UIElementWrapper {
             position: (30, 50).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: None,
             inner: UIElement::Text {
-                foreground: color::BLACK,
                 text: "Press POWER to return to reMarkable".to_owned(),
-                scale: 35.0,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-
-    app.add_element(
-        "tooltipLeft",
-        UIElementWrapper {
-            position: (15, 1850).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            onclick: None,
-            inner: UIElement::Text {
+                scale: 40.0,
                 foreground: color::BLACK,
-                text: "Quick Redraw".to_owned(), // maybe quick redraw for the demo or waveform change?
-                scale: 50.0,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-    app.add_element(
-        "tooltipMiddle",
-        UIElementWrapper {
-            position: (565, 1850).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: "Full Redraw".to_owned(),
-                scale: 50.0,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-    app.add_element(
-        "tooltipRight",
-        UIElementWrapper {
-            position: (1112, 1850).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: "Disable Touch".to_owned(),
-                scale: 50.0,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-
-    // Create the top bar's time and battery labels. We can mutate these later.
-    let dt: DateTime<Local> = Local::now();
-    app.add_element(
-        "battery",
-        UIElementWrapper {
-            position: (30, 215).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: format!(
-                    "{0:<128}",
-                    format!(
-                        "{0} — {1}%",
-                        battery::human_readable_charging_status().unwrap(),
-                        battery::percentage().unwrap()
-                    )
-                ),
-                scale: 44.0,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-    app.add_element(
-        "time",
-        UIElementWrapper {
-            position: (30, 150).into(),
-            refresh: UIConstraintRefresh::Refresh,
-            inner: UIElement::Text {
-                foreground: color::BLACK,
-                text: format!("{}", dt.format("%F %r")),
-                scale: 75.0,
                 border_px: 0,
             },
             ..Default::default()
@@ -995,7 +769,7 @@ fn main() {
     // Get a &mut to the framebuffer object, exposing many convenience functions
     let appref = app.upgrade_ref();
     let clock_thread = std::thread::spawn(move || {
-        loop_update_topbar(appref, 30 * 1000);
+        loop_update_battime(appref);
     });
 
     let appref2 = app.upgrade_ref();
