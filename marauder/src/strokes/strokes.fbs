@@ -1,0 +1,43 @@
+namespace marauder.strokes;
+
+struct Vec2f32 {
+  x:float32;
+  y:float32;
+}
+
+struct Vec2u16 {
+  x:uint16;
+  y:uint16;
+}
+
+
+struct NormPoint2 {
+  position:Vec2f32;
+  pressure:float32;
+  tilt:Vec2f32;
+}
+
+struct Point2 {
+  position:Vec2f32;
+  pressure:uint16;
+  tilt:Vec2u16;
+}
+
+
+table Stroke {
+  shade:uint8 = 0; // 0 is black
+  tip_diameter:uint16 = 2;
+  pause_ms:uint16 = 0;
+  // points XOR normpoints
+  points:[Point2];
+  normpoints:[NormPoint2];
+}
+
+table Strokes {
+  // all(points XOR normpoints)
+  strokes:[Stroke];
+  region_width:uint32 = 0;
+  region_height:uint32 = 0;
+}
+
+root_type Strokes;

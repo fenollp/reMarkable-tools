@@ -6,7 +6,6 @@ extern crate lazy_static;
 extern crate log;
 extern crate env_logger;
 
-extern crate libremarkable;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -21,13 +20,10 @@ use libremarkable::ui_extensions::element::{
 };
 use libremarkable::{battery, image};
 
-extern crate chrono;
 use chrono::{DateTime, Local};
 
-extern crate atomic;
 use atomic::Atomic;
 
-extern crate rand;
 use rand::Rng;
 
 use std::collections::VecDeque;
