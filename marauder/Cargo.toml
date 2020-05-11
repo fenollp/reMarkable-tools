@@ -16,4 +16,5 @@ itertools = "^0"
 lazy_static = "^1"
 libremarkable = { git = "https://github.com/canselcik/libremarkable" }
 log = "^0"
+nom = "5"
 rand = "^0"

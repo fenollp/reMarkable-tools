@@ -3,7 +3,7 @@ use libremarkable::framebuffer::common::*;
 
 use std::time::Duration;
 
-use crate::strokes::*;
+use crate::strokes::{Stroke, Strokes};
 
 pub fn abs(c: color, step: Duration) -> Strokes {
     let mut left_eye = Stroke::default();

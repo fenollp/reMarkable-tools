@@ -18,6 +18,15 @@ fmt:
 lint: fmt
 	cross clippy --target=$(TARGET)
 
+test: fmt test-ujipenchars2
+	cargo test
+
+ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
+ujipenchars2.txt:
+	curl -fSLo $@ $(url)
+test-ujipenchars2: ujipenchars2.txt
+	cargo run --bin ujipenchars $^
+
 update:
 	cargo update
 

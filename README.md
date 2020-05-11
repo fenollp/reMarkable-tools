@@ -41,6 +41,7 @@ journalctl --vacuum-size=2M
 	* task: HTR = Handwriting Text Recognition
 	* https://quickdraw.withgoogle.com
 	* https://archive.ics.uci.edu/ml/datasets/UJI+Pen+Characters
+		* https://archive.ics.uci.edu/ml/datasets/Pen-Based+Recognition+of+Handwritten+Digits
 	* https://arxiv.org/abs/1904.08095
 	* https://arxiv.org/abs/1907.12935
 	* https://www.gavo.t.u-tokyo.ac.jp/~qiao/database.html
@@ -49,3 +50,7 @@ journalctl --vacuum-size=2M
 	* https://mathpix.com/
 * https://github.com/dickrnn/dickrnn.github.io
 * https://github.com/tonybeltramelli/pix2code
+* https://crates.io/crates/eliza
+* https://parl.ai/projects/recipes
+* https://billwadge.wordpress.com/2020/04/20/the-intensional-spreadsheet
+* https://github.com/lisbravo/MNIST-drawing-test
