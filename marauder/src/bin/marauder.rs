@@ -6,36 +6,42 @@ extern crate lazy_static;
 extern crate log;
 extern crate env_logger;
 
+use atomic::Atomic;
+use chrono::DateTime;
+use chrono::Local;
 use libremarkable::appctx::ApplicationContext;
+use libremarkable::battery;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::refresh::PartialRefreshMode;
 use libremarkable::framebuffer::storage;
-use libremarkable::framebuffer::{FramebufferDraw, FramebufferIO, FramebufferRefresh};
+use libremarkable::framebuffer::FramebufferDraw;
+use libremarkable::framebuffer::FramebufferIO;
+use libremarkable::framebuffer::FramebufferRefresh;
+use libremarkable::image;
 use libremarkable::image::GenericImage;
-use libremarkable::input::{gpio, multitouch, wacom, InputDevice};
-use libremarkable::ui_extensions::element::{
-    UIConstraintRefresh, UIElement, UIElementHandle, UIElementWrapper,
-};
-use libremarkable::{battery, image};
-
-use chrono::{DateTime, Local};
-
-use atomic::Atomic;
-
-use rand::Rng;
-
+use libremarkable::input::gpio;
+use libremarkable::input::multitouch;
+use libremarkable::input::wacom;
+use libremarkable::input::InputDevice;
+use libremarkable::ui_extensions::element::UIConstraintRefresh;
+use libremarkable::ui_extensions::element::UIElement;
+use libremarkable::ui_extensions::element::UIElementHandle;
+use libremarkable::ui_extensions::element::UIElementWrapper;
+// use rand::Rng;
+use marauder::modes::draw::DrawMode;
+use marauder::modes::touch::TouchMode;
+use marauder::strokes::Strokes;
+use marauder::unipen;
 use std::collections::VecDeque;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
-
-use marauder::modes::draw::DrawMode;
-use marauder::modes::touch::TouchMode;
-use marauder::shapes::*;
+// use marauder::shapes::*;
 
 // This region will have the following size at rest:
 //   raw: 5896 kB
@@ -290,17 +296,26 @@ fn loop_update_battime(app: &mut ApplicationContext) {
 }
 
 fn loop_companion(app: &mut ApplicationContext) {
-    let mut strokes = smileyface::abs(color::BLACK, Duration::from_millis(2));
-    let (xmin, xmax, ymin, ymax) = strokes.translation_boundaries();
-    let mut rng = rand::thread_rng();
+    // let mut strokes = smileyface::abs(color::BLACK, Duration::from_millis(2));
+    // let (xmin, xmax, ymin, ymax) = strokes.translation_boundaries();
+    // let mut rng = rand::thread_rng();
 
-    loop {
-        // select (dx,dy) such that strokes shifted by (dx,dy) is still within CANVAS_REGION
-        let dx = rng.gen_range(xmin, xmax);
-        let dy = rng.gen_range(ymin, ymax);
-        strokes.translate((dx, dy));
-        strokes.draw(app);
-        sleep(Duration::from_millis(100));
+    // loop {
+    //     // select (dx,dy) such that strokes shifted by (dx,dy) is still within CANVAS_REGION
+    //     let dx = rng.gen_range(xmin, xmax);
+    //     let dy = rng.gen_range(ymin, ymax);
+    //     strokes.translate((dx, dy));
+    //     strokes.draw(app);
+    //     sleep(Duration::from_millis(100));
+    // }
+
+    if let Ok((_, words)) = unipen::words(include_str!("../../ujipenchars2.txt")) {
+        debug!("Loaded {} glyphs", words.len());
+        for word in &words {
+            let glyph = Strokes::from_ujipenchars(word);
+            glyph.draw(app);
+            sleep(Duration::from_millis(100));
+        }
     }
 }
 

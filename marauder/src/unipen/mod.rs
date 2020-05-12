@@ -86,7 +86,7 @@ fn word(input: &str) -> IResult<&str, Word> {
         Word {
             glyph: glyph.to_string(),
             id: id.to_string(),
-            strokes: strokes,
+            strokes,
         },
     ))
 }

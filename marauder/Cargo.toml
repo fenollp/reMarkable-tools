@@ -5,7 +5,7 @@ authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
 edition = "2018"
 
 [profile.release]
-debug = true
+# debug = true
 lto = "thin"
 
 [dependencies]

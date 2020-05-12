@@ -1,4 +1,3 @@
-extern crate libremarkable;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -12,6 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use crate::modes::draw::*;
+use crate::unipen;
 
 pub struct Stroke {
     color: color,
@@ -181,6 +181,30 @@ impl Strokes {
         for stroke in &mut self.strokes {
             stroke.translate((dx, dy));
         }
+    }
+
+    pub fn from_ujipenchars(uji: &unipen::Word) -> Self {
+        let mut strokes = vec![];
+        let pressure = 1024;
+        for uji_stroke in &uji.strokes {
+            let mut pnp: Vec<(cgmath::Point2<f32>, u16)> = Vec::new();
+            pnp.reserve_exact(uji_stroke.len());
+            for p in uji_stroke {
+                pnp.push((
+                    cgmath::Point2::<f32> {
+                        x: p.x as f32,
+                        y: p.y as f32,
+                    },
+                    pressure,
+                ));
+            }
+            let mut stroke = Stroke::default();
+            stroke.set_points_and_pressure(&pnp);
+            stroke.set_color(color::BLACK);
+            stroke.set_step(Duration::from_millis(2));
+            strokes.push(stroke);
+        }
+        strokes.into()
     }
 }
 

@@ -15,7 +15,7 @@ fn main() {
 
     match unipen::words(&contents) {
         Ok((rest, words)) => {
-            if rest.len() > 0 {
+            if !rest.is_empty() {
                 println!("rest: .{:?}.", &rest[0..10]);
             }
             println!("parsed {:?} UNIPEN words", words.len());
