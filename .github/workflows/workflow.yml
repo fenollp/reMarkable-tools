@@ -11,6 +11,8 @@ jobs:
         toolchain: nightly # TODO: stable once const-fn is in
         target: armv7-unknown-linux-musleabihf
         override: true
+    - run: make ujipenchars2.txt
+    - run: make test
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         use-cross: true

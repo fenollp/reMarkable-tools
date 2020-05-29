@@ -185,7 +185,6 @@ impl Strokes {
 
     pub fn from_ujipenchars(uji: &unipen::Word) -> Self {
         let mut strokes = vec![];
-        let pressure = 1024;
         for uji_stroke in &uji.strokes {
             let mut pnp: Vec<(cgmath::Point2<f32>, u16)> = Vec::new();
             pnp.reserve_exact(uji_stroke.len());
@@ -195,7 +194,7 @@ impl Strokes {
                         x: p.x as f32,
                         y: p.y as f32,
                     },
-                    pressure,
+                    1024, // pressure
                 ));
             }
             let mut stroke = Stroke::default();

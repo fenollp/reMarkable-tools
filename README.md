@@ -54,3 +54,8 @@ journalctl --vacuum-size=2M
 * https://parl.ai/projects/recipes
 * https://billwadge.wordpress.com/2020/04/20/the-intensional-spreadsheet
 * https://github.com/lisbravo/MNIST-drawing-test
+* https://supernote.com/#/product?type=SN-A5
+* https://www.myscript.com/
+	* https://github.com/MyScript/interactive-ink-examples-ios
+	* https://github.com/CocoaPods/Specs/blob/master/Specs/f/c/3/MyScriptInteractiveInk-Runtime
+* https://untools.co/
