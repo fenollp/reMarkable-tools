@@ -60,3 +60,4 @@ journalctl --vacuum-size=2M
 	* https://github.com/CocoaPods/Specs/blob/master/Specs/f/c/3/MyScriptInteractiveInk-Runtime
 * https://untools.co/
 * https://en.wikipedia.org/wiki/TRIZ
+* https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
