@@ -61,3 +61,4 @@ journalctl --vacuum-size=2M
 * https://untools.co/
 * https://en.wikipedia.org/wiki/TRIZ
 * https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
+* https://github.com/alexandre01/deepsvg
