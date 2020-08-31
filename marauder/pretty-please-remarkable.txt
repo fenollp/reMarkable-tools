@@ -1,0 +1,41 @@
+This year I have discovered https://www.myscript.com/interactive-ink
+I own an rM 1 (from the Kickstarter) and I love e-Ink: no backlit screen & the paper feel.
+
+I don't know much about UI/UX design but I have a real hard time using a touch keyboard (with slowish screen refresh rate). I just feel like MyScript's software (or equivalent) HAS to be used for most/all UI interactions. e.g. OCR (a keyboard on paper? crazy)
+
+But your tablet is unique: let's go farther! Today the touch-based UI is on-par with normal tablets (and that's good). The stylus-based interface is lacking IMO. Let's look at how paper works (we all know this):
+* you can cross or bar things out (sometimes even erase things out)
+* you can underline and circle words/paragraphs/anything
+* you can write/draw at an angle
+* you can draw a graph of boxes/ellipses/circles and write in them
+* it's use is instant: you can scribble anything anywhere
+
+I wish all this was seamless but more than that: it should be enhanced by software!
+* when crossing out a blurb of text/squiggly lines: let's erase them!
+* underline => make the text/line bolder
+* circling => let's replace this with an ellipsis with right alignment
+* support angled scribbles (maybe the cut/copy/paste functionality can use a "lever" to correct the angle?)
+* let's replace hand-drawn circles, boxes, lines, arrows with neat computer-drawn versions (if user so chooses)
+* let's allow drawing anywhere on the interface!
+
+Your device is special. It requires an interface that's at least as special!
+
+How about providing the interface functionality as piecemeal blocks that can be arranged/organized/rotated/flipped and magnetized around by the user (not unlike Firefox's top bar: https://youtu.be/q4PB9NXmAYE?t=36 )?
+This allows for a large space of customizability. You could even make a store for such blocks of functionality and let the community grow the software!
+See https://en.wikipedia.org/wiki/HyperCard
+
+Please take a look at MyScript's iOS demo app "Calculator 2"
+* it reads input at any angle
+* it understands math equations and rewrites them with a computer font / LaTeX
+* it understands crossing characters out
+* it goes the extra mile: it tries to resolve math equations!
+Think about this: you are able to sell Harry Potter's Marauder's map. This can be nothing short of amazing.
+Sure it doesn't understand much else out of Math (words or sentences or ellipses are not recognized). Surely that's a design limitation for the calculator.
+Imagine having "scribble blocks" that each support different classes of hand drawn-input:
+* a calculator block
+* a block for unified modeling language (UML)
+* a block for French text
+Now you should be able to "connect" a text block with another, say "Google" and writing in the former would trigger a search and display results in the latter!
+Even farther: create a font from the user's handwriting and use it when printing these search results out: it's the Marauder's map (https://harrypotter.fandom.com/wiki/Marauder%27s_Map) 
+
+I'd create a block that connects to a UML-editing window and prints out real-time(ish) results from that pipeline using https://github.com/google/mediapipe. AI inference at the tip of your pencil!
