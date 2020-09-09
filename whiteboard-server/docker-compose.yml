@@ -1,0 +1,34 @@
+version: '3.7'
+services:
+
+  rabbitmq:
+    build: ./rabbitmq
+    image: rmq
+    environment:
+      RABBITMQ_DEFAULT_USER: &RABBITMQ_USER '4LKGPXSQPnXnDi'
+      RABBITMQ_DEFAULT_PASS: &RABBITMQ_PASS '3FhApsePsokCLY'
+      # Only here so refs can be bound
+      _1: &RABBITMQ_EXCHANGE 'Rsd8kijR3gFJeD'
+      _2: &RABBITMQ_EXCHANGE_TYPE 'topic'
+      _3: &RABBITMQ_HOST 'rabbitmq'
+      _4: &RABBITMQ_VHOST '/'
+    ports:
+    - '5672:5672'
+    - '15672:15672'
+
+  whiteboard:
+    depends_on:
+    - rabbitmq
+    build: .
+    image: wb
+    environment:
+      PORT: '10000'
+      RABBITMQ_EXCHANGE: *RABBITMQ_EXCHANGE
+      RABBITMQ_HOST: *RABBITMQ_HOST
+      RABBITMQ_PASS: *RABBITMQ_PASS
+      RABBITMQ_USER: *RABBITMQ_USER
+      RABBITMQ_VHOST: *RABBITMQ_VHOST
+      GRPC_GO_LOG_SEVERITY_LEVEL: info
+      GRPC_GO_LOG_VERBOSITY_LEVEL: 99
+    ports:
+    - '10000:10000'

@@ -1,0 +1,147 @@
+{
+  "definitions": [
+    {
+      "protopath": "marauder:/:proto:/:hypercard:/:whiteboard.proto",
+      "def": {
+        "messages": [
+          {
+            "name": "Event",
+            "fields": [
+              {
+                "id": 1,
+                "name": "created_at",
+                "type": "int64"
+              },
+              {
+                "id": 2,
+                "name": "user_id",
+                "type": "string"
+              },
+              {
+                "id": 3,
+                "name": "room_id",
+                "type": "string"
+              },
+              {
+                "id": 4,
+                "name": "event_drawing",
+                "type": "Drawing"
+              },
+              {
+                "id": 5,
+                "name": "event_user_left_the_room",
+                "type": "bool"
+              },
+              {
+                "id": 6,
+                "name": "event_user_joined_the_room",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "Drawing"
+          },
+          {
+            "name": "RecvEventsReq",
+            "fields": [
+              {
+                "id": 1,
+                "name": "room_id",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "name": "SendEventReq",
+            "fields": [
+              {
+                "id": 1,
+                "name": "event",
+                "type": "Event"
+              },
+              {
+                "id": 2,
+                "name": "room_ids",
+                "type": "string",
+                "is_repeated": true
+              }
+            ]
+          },
+          {
+            "name": "SendEventRep"
+          },
+          {
+            "name": "ListRoomsReq"
+          },
+          {
+            "name": "ListRoomsRep",
+            "fields": [
+              {
+                "id": 1,
+                "name": "events",
+                "type": "Event",
+                "is_repeated": true
+              }
+            ]
+          },
+          {
+            "name": "RoomMember"
+          },
+          {
+            "name": "ListRoomMembersReq",
+            "fields": [
+              {
+                "id": 1,
+                "name": "room_id",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "name": "ListRoomMembersRep",
+            "fields": [
+              {
+                "id": 1,
+                "name": "members",
+                "type": "RoomMember",
+                "is_repeated": true
+              }
+            ]
+          }
+        ],
+        "services": [
+          {
+            "name": "Whiteboard",
+            "rpcs": [
+              {
+                "name": "RecvEvents",
+                "in_type": "RecvEventsReq",
+                "out_type": "Event",
+                "out_streamed": true
+              },
+              {
+                "name": "SendEvent",
+                "in_type": "SendEventReq",
+                "out_type": "SendEventRep"
+              },
+              {
+                "name": "ListRooms",
+                "in_type": "ListRoomsReq",
+                "out_type": "ListRoomsRep"
+              },
+              {
+                "name": "ListRoomMembers",
+                "in_type": "ListRoomMembersReq",
+                "out_type": "ListRoomMembersRep"
+              }
+            ]
+          }
+        ],
+        "package": {
+          "name": "hypercard.whiteboard"
+        }
+      }
+    }
+  ]
+}

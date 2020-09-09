@@ -7,6 +7,7 @@ package hypercard.whiteboard;
 // import "google/protobuf/wrappers.proto";
 
 // Whiteboard is a shared drawing canvas HyperCard.
+// Note: all calls MUST be done with a "user-id" header.
 service Whiteboard {
 
   // RecvEvents listens to new events from others for a given room.
@@ -28,23 +29,23 @@ service Whiteboard {
 
 message Event {
   int64 created_at = 1; // Unset when publishing
-  string user_id = 2;
+  string user_id = 2; // Unset when publishing
   string room_id = 3; // Unset when publishing
-  // Only one of the msg_* must ever be set at once
-  Drawing msg_drawing = 4;
-  bool msg_user_left_the_room = 5;
+  // Only one of the event_* must ever be set at once
+  Drawing event_drawing = 4;
+  bool event_user_left_the_room = 5;
+  bool event_user_joined_the_room = 6;
 }
 
 message Drawing {
 }
 
 message RecvEventsReq {
-  string user_id = 1; // User to listen as.
-  string room_id = 2; // Room to receive events from.
+  string room_id = 1; // Room to receive events from.
 }
 
 message SendEventReq {
-  Event msg = 1;
+  Event event = 1;
   repeated string room_ids = 2; // Rooms to send event to.
 }
 message SendEventRep {
