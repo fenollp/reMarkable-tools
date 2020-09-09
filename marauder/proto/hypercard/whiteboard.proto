@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package hypercard.whiteboard;
+// option go_package = "whiteboard";
+
+// import "google/protobuf/empty.proto";
+// import "google/protobuf/wrappers.proto";
+
+// Whiteboard is a shared drawing canvas HyperCard.
+service Whiteboard {
+
+  // RecvEvents listens to new events from others for a given room.
+  // Events are sent using the SendEvent call.
+  // A user never receives their own events.
+  // When stream is closed, other users of the room should receive a disconnection event.
+  rpc RecvEvents(RecvEventsReq) returns (stream Event) {}
+
+  // SendEvent publishes a user's event, which then gets routed to zero or more rooms.
+  rpc SendEvent(SendEventReq) returns (SendEventRep) {}
+
+  // ListRooms returns a paginated list of rooms.
+  rpc ListRooms(ListRoomsReq) returns (ListRoomsRep) {}
+
+  // ListRoomMembers returns a paginated list of room members.
+  rpc ListRoomMembers(ListRoomMembersReq) returns (ListRoomMembersRep) {}
+
+}
+
+message Event {
+  int64 created_at = 1; // Unset when publishing
+  string user_id = 2;
+  string room_id = 3; // Unset when publishing
+  // Only one of the msg_* must ever be set at once
+  Drawing msg_drawing = 4;
+  bool msg_user_left_the_room = 5;
+}
+
+message Drawing {
+}
+
+message RecvEventsReq {
+  string user_id = 1; // User to listen as.
+  string room_id = 2; // Room to receive events from.
+}
+
+message SendEventReq {
+  Event msg = 1;
+  repeated string room_ids = 2; // Rooms to send event to.
+}
+message SendEventRep {
+}
+
+message ListRoomsReq {
+  // TODO: cursor with direction+offset+limit
+}
+message ListRoomsRep {
+  repeated Event events = 1;
+  // TODO: cursor
+}
+
+message RoomMember {
+}
+message ListRoomMembersReq {
+  string room_id = 1;
+  // TODO: cursor with direction+offset+limit
+}
+message ListRoomMembersRep {
+  repeated RoomMember members = 1;
+  // TODO: cursor
+}
