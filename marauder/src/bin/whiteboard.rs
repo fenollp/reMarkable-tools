@@ -57,6 +57,7 @@ lazy_static! {
     static ref DRAWING: AtomicBool = AtomicBool::new(false);
     static ref SAVED_CANVAS: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
     static ref SAVED_CANVAS_PREV: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
+    static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
 
 // ####################
@@ -118,7 +119,7 @@ fn loop_update_battime(app: &mut ApplicationContext) {
 // ## Input Handlers
 // ####################
 
-fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
+fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     match input {
         wacom::WacomEvent::Draw {
             position,
@@ -223,10 +224,14 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
             // If the pen is hovering, don't record its coordinates as the origin of the next line
             if distance > 1 {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
+                let drawing = Drawing {};
+                wacom_stack.clear();
 
                 // FIXME: gRPC call Whiteboard/SendEvent(hist)
-
-                wacom_stack.clear();
+                let wtx = TX.lock().unwrap();
+                if let Some(ref tx) = *wtx {
+                    tx.send(drawing).unwrap();
+                }
 
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
@@ -235,7 +240,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     };
 }
 
-fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+fn on_tch(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
     let framebuffer = app.get_framebuffer_ref();
     if let multitouch::MultitouchEvent::Touch {
         gesture_seq: _,
@@ -307,7 +312,7 @@ fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchE
     }
 }
 
-fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
+fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     let (btn, new_state) = match input {
         gpio::GPIOEvent::Press { button } => (button, true),
         gpio::GPIOEvent::Unpress { button } => (button, false),
@@ -371,8 +376,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Takes callback functions as arguments
     // They are called with the event and the &mut framebuffer
-    let mut app: ApplicationContext =
-        ApplicationContext::new(on_button_press, on_wacom_input, on_touch_handler);
+    let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
 
     // Alternatively we could have called `app.execute_lua("fb.clear()")`
     app.clear(true);
@@ -438,41 +442,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    let mut rt = Runtime::new().unwrap();
+    // let mut rt = Runtime::new().unwrap();
     let appref1 = app.upgrade_ref();
     let appref2 = app.upgrade_ref();
-    rt.block_on(async move {
-        info!("Connecting...");
-        let channel = tonic::transport::Endpoint::from_static("http://[::1]:10000")
-            .connect()
-            // let mut client = WhiteboardClient::connect("http://[::1]:10000")
-            .await
-            // .map_err(|e| error!("!Connecting: {:?}", e))
-            .unwrap();
-        let mut client1 = WhiteboardClient::new(channel.clone());
-        let mut client2 = WhiteboardClient::new(channel);
+    // rt.block_on(async move {
 
-        tokio::spawn(async move {
-            loop_update_battime(appref1);
-        });
-        tokio::spawn(async move {
-            loop_recv(appref2, &mut client2).await;
-        });
+    info!("Connecting...");
+    let channel = Endpoint::from_static("http://[::1]:10000")
+        .connect()
+        .await
+        .unwrap();
+    let mut client1 = WhiteboardClient::new(channel.clone());
+    let mut client2 = WhiteboardClient::new(channel);
 
-        info!("Init complete. Beginning event dispatch...");
-
-        send_drawing(&mut client1, Drawing {}).await;
-
-        // Blocking call to process events from digitizer + touchscreen + physical buttons
-        app.dispatch_events(true, true, true);
-        // loop {}
+    tokio::spawn(async move {
+        loop_update_battime(appref1);
     });
+    tokio::spawn(async move {
+        loop_recv(appref2, &mut client2).await;
+    });
+
+    info!("Init complete. Beginning event dispatch...");
+
+    tokio::spawn(async move {
+        let (tx, rx) = std::sync::mpsc::channel();
+        {
+            let mut wtx = TX.lock().unwrap();
+            *wtx = Some(tx.to_owned());
+        }
+        loop {
+            let rcvd = rx.recv();
+            match rcvd {
+                Ok(drawing) => send_drawing(&mut client1, drawing).await,
+                Err(e) => error!("!rx {:?}", e),
+            }
+        }
+    });
+
+    // Blocking call to process events from digitizer + touchscreen + physical buttons
+    app.dispatch_events(true, true, true);
+    // });
     Ok(())
 }
 
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
 use tonic::transport::Channel;
+use tonic::transport::Endpoint;
 use tonic::Request;
+
+use tokio::time::delay_for;
 
 use whiteboard::whiteboard_client::WhiteboardClient;
 use whiteboard::{Drawing, Event, RecvEventsReq, SendEventReq};
@@ -487,32 +505,19 @@ fn add_xuser<T>(req: &mut Request<T>) {
     assert!(md.insert("x-user", user_id).is_none());
 }
 
-async fn loop_recv<'a>(
-    app: &'a mut ApplicationContext<'a>,
-    client: &mut WhiteboardClient<Channel>,
-) {
+async fn loop_recv(app: &mut ApplicationContext<'_>, client: &mut WhiteboardClient<Channel>) {
     let mut req = Request::new(RecvEventsReq {
         room_id: "living-room".into(),
     });
     add_xuser(&mut req);
     info!("Receiving... {:?}", req);
 
-    let mut stream = client
-        .recv_events(req)
-        .await
-        // .map_err(|e| error!("!RecvEvents: {:?}", e))
-        .unwrap()
-        .into_inner();
+    let mut stream = client.recv_events(req).await.unwrap().into_inner();
 
-    while let Some(event) = stream
-        .message()
-        .await
-        // .map_err(|e| error!("!Event: {:?}", e))
-        .unwrap()
-    {
+    while let Some(event) = stream.message().await.unwrap() {
         println!("EVENT = {:?}", event);
         if let Some(drawing) = event.event_drawing {
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            delay_for(Duration::from_secs(1)).await;
             debug!(
                 "MT? {:?}",
                 app.is_input_device_active(InputDevice::Multitouch)
