@@ -6,9 +6,8 @@ fn main() {
     new_path.push_str(&env::var("PATH").unwrap());
     env::set_var("PATH", new_path);
 
-    let protos = vec!["proto/hypercard/whiteboard.proto"];
-
-    for proto in protos {
-        tonic_build::compile_protos(proto).unwrap();
-    }
+    tonic_build::configure()
+        .build_server(false)
+        .compile(&["proto/hypercard/whiteboard.proto"], &["."])
+        .unwrap();
 }

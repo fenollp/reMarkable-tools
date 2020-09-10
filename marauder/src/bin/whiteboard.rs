@@ -438,26 +438,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    // Get a &mut to the framebuffer object, exposing many convenience functions
+    let mut rt = Runtime::new().unwrap();
     let appref1 = app.upgrade_ref();
-    let clock_thread = std::thread::spawn(move || {
-        loop_update_battime(appref1);
-    });
-
     let appref2 = app.upgrade_ref();
-    let recv_thread = std::thread::spawn(move || {
-        loop_recv(appref2);
+    rt.block_on(async move {
+        info!("Connecting...");
+        let channel = tonic::transport::Endpoint::from_static("http://[::1]:10000")
+            .connect()
+            // let mut client = WhiteboardClient::connect("http://[::1]:10000")
+            .await
+            // .map_err(|e| error!("!Connecting: {:?}", e))
+            .unwrap();
+        let mut client1 = WhiteboardClient::new(channel.clone());
+        let mut client2 = WhiteboardClient::new(channel);
+
+        tokio::spawn(async move {
+            loop_update_battime(appref1);
+        });
+        tokio::spawn(async move {
+            loop_recv(appref2, &mut client2).await;
+        });
+
+        info!("Init complete. Beginning event dispatch...");
+
+        send_drawing(&mut client1, Drawing {}).await;
+
+        // Blocking call to process events from digitizer + touchscreen + physical buttons
+        app.dispatch_events(true, true, true);
+        // loop {}
     });
-
-    info!("Init complete. Beginning event dispatch...");
-
-    // Blocking call to process events from digitizer + touchscreen + physical buttons
-    app.dispatch_events(true, true, true);
-    clock_thread.join().unwrap();
-    recv_thread.join().unwrap();
     Ok(())
 }
 
+use tokio::runtime::Runtime;
 use tonic::transport::Channel;
 use tonic::Request;
 
@@ -468,57 +481,63 @@ pub mod whiteboard {
     tonic::include_proto!("hypercard.whiteboard");
 }
 
-async fn loop_recv(app: &mut ApplicationContext) {
-    info!("Connecting...");
-    let mut client = WhiteboardClient::connect("http://[::1]:10000")
-        .await
-        .map_err(|e| error!("!Connecting: {:?}", e));
-    info!("Receiving...");
+fn add_xuser<T>(req: &mut Request<T>) {
+    let user_id = "Joe".parse().unwrap();
+    let md = Request::metadata_mut(req);
+    assert!(md.insert("x-user", user_id).is_none());
+}
+
+async fn loop_recv<'a>(
+    app: &'a mut ApplicationContext<'a>,
+    client: &mut WhiteboardClient<Channel>,
+) {
+    let mut req = Request::new(RecvEventsReq {
+        room_id: "living-room".into(),
+    });
+    add_xuser(&mut req);
+    info!("Receiving... {:?}", req);
 
     let mut stream = client
-        .recv_events(Request::new(RecvEventsReq {
-            user_id: "Joe".into(),
-            room_id: "living-room".into(),
-        }))
+        .recv_events(req)
         .await
-        .map_err(|e| error!("!RecvEvents: {:?}", e))
+        // .map_err(|e| error!("!RecvEvents: {:?}", e))
+        .unwrap()
         .into_inner();
 
     while let Some(event) = stream
         .message()
         .await
-        .map_err(|e| error!("!Event: {:?}", e))
+        // .map_err(|e| error!("!Event: {:?}", e))
+        .unwrap()
     {
         println!("EVENT = {:?}", event);
-        if let Some(drawing) = event.msg_drawing {
-            draw(app, drawing);
+        if let Some(drawing) = event.event_drawing {
+            tokio::time::delay_for(Duration::from_secs(1)).await;
+            debug!(
+                "MT? {:?}",
+                app.is_input_device_active(InputDevice::Multitouch)
+            );
         }
     }
 }
 
-async fn send_event(client: &mut WhiteboardClient<Channel>) {
-    let req = Request::new(SendEventReq {
-        msg: Some(Event {
+async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) {
+    let mut req = Request::new(SendEventReq {
+        event: Some(Event {
             created_at: 0,
-            user_id: "Joe".into(),
+            user_id: "".into(),
             room_id: "".into(),
-            msg_drawing: None,
-            msg_user_left_the_room: true,
+            event_drawing: Some(drawing),
+            event_user_left_the_room: true,
+            event_user_joined_the_room: false,
         }),
         room_ids: vec!["living-room".into()],
     });
+    add_xuser(&mut req);
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)
         .await
         .map_err(|e| error!("!Send: {:?}", e));
     info!("REP = {:?}", rep);
-}
-
-fn draw(app: &mut ApplicationContext, drawing: &Drawing) {
-    //FIXME
-    debug!(
-        "MT? {:?}",
-        app.is_input_device_active(InputDevice::Multitouch)
-    );
 }

@@ -13,7 +13,7 @@ import (
 var baseLog *zap.Logger
 
 const (
-	grpcUserID = "user-id"
+	grpcUserID = "x-user"
 )
 
 // MustSetupLogging ...

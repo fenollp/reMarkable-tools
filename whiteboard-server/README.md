@@ -14,7 +14,7 @@ multiple people can draw and collab on like a virtual whiteboard, but failing th
 1. Listen to a room's events with
 ```
 grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
-  -rpc-header 'user-id: moi1' \
+  -rpc-header 'x-user: moi1' \
   -d '{"room_id":"bla" }' \
   -plaintext localhost:10000 \
   hypercard.whiteboard.Whiteboard/RecvEvents
@@ -22,7 +22,7 @@ grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
 1. In another shell, send some event: (it appears on the previous shell)
 ```
 grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
-  -rpc-header 'user-id: me2' \
+  -rpc-header 'x-user: me2' \
   -d '{"room_ids":["bla","bloop"] ,"event":{"event_drawing":{}} }' \
   -plaintext localhost:10000 \
   hypercard.whiteboard.Whiteboard/SendEvent
@@ -30,7 +30,7 @@ grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
 1. Have a second user listen to the same room and observe the first user getting a connection event:
 ```
 grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
-  -rpc-header 'user-id: me2' \
+  -rpc-header 'x-user: me2' \
   -d '{"room_id":"bla" }' \
   -plaintext localhost:10000 \
   hypercard.whiteboard.Whiteboard/RecvEvents
