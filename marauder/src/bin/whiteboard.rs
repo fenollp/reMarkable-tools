@@ -442,10 +442,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    // let mut rt = Runtime::new().unwrap();
     let appref1 = app.upgrade_ref();
     let appref2 = app.upgrade_ref();
-    // rt.block_on(async move {
 
     info!("Connecting...");
     let channel = Endpoint::from_static("http://[::1]:10000")
@@ -481,11 +479,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Blocking call to process events from digitizer + touchscreen + physical buttons
     app.dispatch_events(true, true, true);
-    // });
+
     Ok(())
 }
 
-// use tokio::runtime::Runtime;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tonic::Request;
