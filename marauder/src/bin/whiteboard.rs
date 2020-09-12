@@ -251,13 +251,10 @@ fn maybe_send_drawing() {
 }
 
 fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
-    if let multitouch::MultitouchEvent::Touch {
-        gesture_seq: _,
-        finger_id: _,
-        position,
-    } = input
+    if let multitouch::MultitouchEvent::Press { finger }
+    | multitouch::MultitouchEvent::Move { finger } = input
     {
-        if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
+        if !CANVAS_REGION.contains_point(&finger.pos.cast().unwrap()) {
             return;
         }
     }

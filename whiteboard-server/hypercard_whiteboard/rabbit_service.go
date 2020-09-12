@@ -14,7 +14,7 @@ import (
 
 const (
 	rabbitApp        = "hypercard_whiteboard"
-	rabbitAckTimeout = 5 * time.Second
+	rabbitAckTimeout = 15 * time.Minute
 )
 
 var (
