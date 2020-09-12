@@ -10,9 +10,12 @@ import (
 )
 
 func (srv *Server) validateRecvEvent(ctx context.Context, req *RecvEventsReq) error {
-	// TODO: disallow RabbitMQ special chars (. # *) from roomID
-	if roomID := req.GetRoomId(); roomID == "" {
+	roomID := req.GetRoomId()
+	if roomID == "" {
 		return errBadRequest
+	}
+	if err := ntui(roomID); err != nil {
+		return err
 	}
 	return nil
 }

@@ -38,6 +38,16 @@ message Event {
 }
 
 message Drawing {
+  repeated float xs = 1;
+  repeated float ys = 2;
+  repeated int32 pressures = 3;
+  repeated uint32 widths = 4;
+  enum Color {
+    invisible = 0;
+    BLACK = 1;
+    WHITE = 2;
+  }
+  Color color = 5;
 }
 
 message RecvEventsReq {

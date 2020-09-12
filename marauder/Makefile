@@ -40,3 +40,9 @@ debug: all
 
 src/strokes/strokes_generated.rs: src/strokes/strokes.fbs
 	$(FLATC) --rust -o /dst/strokes /$^
+
+whiteboard: DEVICE ?= root@10.11.99.1
+whiteboard: all
+	ssh $(DEVICE) 'killall -q -9 whiteboard || true; systemctl stop xochitl || true'
+	scp $(BIN) $(DEVICE):
+	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./whiteboard | tail -f'

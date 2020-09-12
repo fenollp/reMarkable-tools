@@ -30,9 +30,25 @@ func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) err
 	}
 
 	roomIDs := req.GetRoomIds()
-	// TODO: disallow RabbitMQ special chars (. # *) from roomID
 	if hasDuplicates(roomIDs) {
 		return errBadRequest
+	}
+	for _, roomID := range roomIDs {
+		if err := ntui(roomID); err != nil {
+			return err
+		}
+	}
+
+	if drawing := event.GetEventDrawing(); drawing != nil {
+		if drawing.GetColor() == Drawing_invisible {
+			return errBadRequest
+		}
+		if len(drawing.GetXs()) == 0 ||
+			len(drawing.GetXs()) != len(drawing.GetYs()) ||
+			len(drawing.GetXs()) != len(drawing.GetPressures()) ||
+			len(drawing.GetXs()) != len(drawing.GetWidths()) {
+			return errBadRequest
+		}
 	}
 	return nil
 }

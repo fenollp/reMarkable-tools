@@ -3,6 +3,24 @@
     {
       "protopath": "marauder:/:proto:/:hypercard:/:whiteboard.proto",
       "def": {
+        "enums": [
+          {
+            "name": "Drawing.Color",
+            "enum_fields": [
+              {
+                "name": "invisible"
+              },
+              {
+                "name": "BLACK",
+                "integer": 1
+              },
+              {
+                "name": "WHITE",
+                "integer": 2
+              }
+            ]
+          }
+        ],
         "messages": [
           {
             "name": "Event",
@@ -40,7 +58,38 @@
             ]
           },
           {
-            "name": "Drawing"
+            "name": "Drawing",
+            "fields": [
+              {
+                "id": 1,
+                "name": "xs",
+                "type": "float",
+                "is_repeated": true
+              },
+              {
+                "id": 2,
+                "name": "ys",
+                "type": "float",
+                "is_repeated": true
+              },
+              {
+                "id": 3,
+                "name": "pressures",
+                "type": "int32",
+                "is_repeated": true
+              },
+              {
+                "id": 4,
+                "name": "widths",
+                "type": "uint32",
+                "is_repeated": true
+              },
+              {
+                "id": 5,
+                "name": "color",
+                "type": "Color"
+              }
+            ]
           },
           {
             "name": "RecvEventsReq",

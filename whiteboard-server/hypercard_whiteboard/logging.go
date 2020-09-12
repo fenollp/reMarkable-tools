@@ -90,7 +90,9 @@ func (srv *Server) prepare(ctx context.Context, fs ...authOption) (context.Conte
 	if userID == "" || userID != strings.TrimSpace(userID) {
 		return ctx, cancel, errForbidden
 	}
-	// TODO: disallow RabbitMQ special chars (. # *) in userID
+	if err := ntui(userID); err != nil {
+		return ctx, cancel, err
+	}
 
 	return opts.deadline(ctx, userID)
 }

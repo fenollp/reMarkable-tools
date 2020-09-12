@@ -15,9 +15,7 @@ use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::refresh::PartialRefreshMode;
-use libremarkable::framebuffer::storage;
 use libremarkable::framebuffer::FramebufferDraw;
-use libremarkable::framebuffer::FramebufferIO;
 use libremarkable::framebuffer::FramebufferRefresh;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
@@ -54,34 +52,13 @@ lazy_static! {
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
-    static ref DRAWING: AtomicBool = AtomicBool::new(false);
-    static ref SAVED_CANVAS: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
-    static ref SAVED_CANVAS_PREV: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
+    static ref STROKES: Mutex<Vec<(color, u32, f32, f32, i32)>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
 
 // ####################
 // ## Button Handlers
 // ####################
-
-fn save_canvas(app: &mut ApplicationContext) {
-    let framebuffer = app.get_framebuffer_ref();
-    match framebuffer.dump_region(CANVAS_REGION) {
-        Err(err) => error!("Failed to dump buffer: {0}", err),
-        Ok(buff) => {
-            let mut hist = SAVED_CANVAS.lock().unwrap();
-            if let Some(ref compressed_state) = *hist {
-                let mut prev = SAVED_CANVAS_PREV.lock().unwrap();
-                *prev = Some((*compressed_state).clone());
-            }
-            *hist = Some(storage::CompressedCanvasState::new(
-                buff.as_slice(),
-                CANVAS_REGION.height,
-                CANVAS_REGION.width,
-            ));
-        }
-    };
-}
 
 fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
     let (new_mode, next_name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
@@ -126,8 +103,6 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
             pressure,
             tilt: _,
         } => {
-            // debug!("{} {} {}", position.x, position.y, pressure);
-
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             // Outside of drawable region
@@ -135,6 +110,7 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 // This is so that we can click the buttons outside the canvas region
                 // normally meant to be touched with a finger using our stylus
                 wacom_stack.clear();
+                maybe_send_drawing();
                 if UNPRESS_OBSERVED.fetch_and(false, Ordering::Relaxed) {
                     let region = app
                         .find_active_region(position.y.round() as u16, position.x.round() as u16);
@@ -145,15 +121,15 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 return;
             }
 
-            if !DRAWING.load(Ordering::Relaxed) {
-                // Started drawing
-                DRAWING.store(true, Ordering::Relaxed);
-            }
-
             let (col, mult) = match G_DRAW_MODE.load(Ordering::Relaxed) {
                 DrawMode::Draw(s) => (color::BLACK, s),
                 DrawMode::Erase(s) => (color::WHITE, s * 3),
             };
+
+            {
+                let mut strokes = STROKES.lock().unwrap();
+                strokes.push((col, mult, position.x, position.y, pressure as i32));
+            }
 
             wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
             while wacom_stack.len() >= 3 {
@@ -205,12 +181,9 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
-                        let was_just_drawing = DRAWING.fetch_and(false, Ordering::Relaxed);
-                        if was_just_drawing {
-                            save_canvas(app);
-                        }
                         let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                         wacom_stack.clear();
+                        maybe_send_drawing();
                     }
                 }
                 _ => unreachable!(),
@@ -224,14 +197,8 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
             // If the pen is hovering, don't record its coordinates as the origin of the next line
             if distance > 1 {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
-                let drawing = Drawing {};
                 wacom_stack.clear();
-
-                // FIXME: gRPC call Whiteboard/SendEvent(hist)
-                let wtx = TX.lock().unwrap();
-                if let Some(ref tx) = *wtx {
-                    tx.send(drawing).unwrap();
-                }
+                maybe_send_drawing();
 
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
@@ -240,8 +207,50 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     };
 }
 
-fn on_tch(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
-    let framebuffer = app.get_framebuffer_ref();
+fn maybe_send_drawing() {
+    let mut strokes = STROKES.lock().unwrap();
+    let len = strokes.len();
+    if len < 3 {
+        return;
+    }
+
+    let mut ws = Vec::<u32>::new();
+    let mut xs = Vec::<f32>::new();
+    let mut ys = Vec::<f32>::new();
+    let mut ps = Vec::<i32>::new();
+    ws.reserve(len);
+    xs.reserve(len);
+    ys.reserve(len);
+    ps.reserve(len);
+    for i in 0..len {
+        let dot = strokes[i];
+        ws[i] = dot.1;
+        xs[i] = dot.2;
+        ys[i] = dot.3;
+        ps[i] = dot.4;
+    }
+
+    let col = match strokes[0].0 {
+        color::WHITE => Color::White,
+        _ => Color::Black,
+    };
+
+    let wtx = TX.lock().unwrap();
+    if let Some(ref tx) = *wtx {
+        let drawing = Drawing {
+            xs,
+            ys,
+            pressures: ps,
+            widths: ws,
+            color: col as i32,
+        };
+        tx.send(drawing).unwrap();
+
+        strokes.clear();
+    }
+}
+
+fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
     if let multitouch::MultitouchEvent::Touch {
         gesture_seq: _,
         finger_id: _,
@@ -251,64 +260,6 @@ fn on_tch(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
         if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
             return;
         }
-        let rect = match G_TOUCH_MODE.load(Ordering::Relaxed) {
-            TouchMode::Bezier => {
-                let position_float = position.cast().unwrap();
-                let points = vec![
-                    (cgmath::vec2(-40.0, 0.0), 2.5),
-                    (cgmath::vec2(40.0, -60.0), 5.5),
-                    (cgmath::vec2(0.0, 0.0), 3.5),
-                    (cgmath::vec2(-40.0, 60.0), 6.5),
-                    (cgmath::vec2(-10.0, 50.0), 5.0),
-                    (cgmath::vec2(10.0, 45.0), 4.5),
-                    (cgmath::vec2(30.0, 55.0), 3.5),
-                    (cgmath::vec2(50.0, 65.0), 3.0),
-                    (cgmath::vec2(70.0, 40.0), 0.0),
-                ];
-                let mut rect = mxcfb_rect::invalid();
-                for window in points.windows(3).step_by(2) {
-                    rect = rect.merge_rect(&framebuffer.draw_dynamic_bezier(
-                        (position_float + window[0].0, window[0].1),
-                        (position_float + window[1].0, window[1].1),
-                        (position_float + window[2].0, window[2].1),
-                        100,
-                        color::BLACK,
-                    ));
-                }
-                rect
-            }
-            TouchMode::Circles => {
-                framebuffer.draw_circle(position.cast().unwrap(), 20, color::BLACK)
-            }
-
-            m @ TouchMode::Diamonds | m @ TouchMode::FillDiamonds => {
-                let position_int = position.cast().unwrap();
-                framebuffer.draw_polygon(
-                    &[
-                        position_int + cgmath::vec2(-10, 0),
-                        position_int + cgmath::vec2(0, 20),
-                        position_int + cgmath::vec2(10, 0),
-                        position_int + cgmath::vec2(0, -20),
-                    ],
-                    match m {
-                        TouchMode::Diamonds => false,
-                        TouchMode::FillDiamonds => true,
-                        _ => false,
-                    },
-                    color::BLACK,
-                )
-            }
-            _ => return,
-        };
-        framebuffer.partial_refresh(
-            &rect,
-            PartialRefreshMode::Async,
-            waveform_mode::WAVEFORM_MODE_DU,
-            display_temp::TEMP_USE_REMARKABLE_DRAW,
-            dither_mode::EPDC_FLAG_USE_DITHERING_ALPHA,
-            DRAWING_QUANT_BIT,
-            false,
-        );
     }
 }
 
@@ -442,20 +393,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    let appref1 = app.upgrade_ref();
-    let appref2 = app.upgrade_ref();
-
     info!("Connecting...");
-    let channel = Endpoint::from_static("http://[::1]:10000")
+    let channel = Endpoint::from_static("http://fknwkdacd.com:10000")
         .connect()
         .await
         .unwrap();
     let mut client1 = WhiteboardClient::new(channel.clone());
     let mut client2 = WhiteboardClient::new(channel);
 
+    let appref1 = app.upgrade_ref();
     tokio::spawn(async move {
         loop_update_battime(appref1);
     });
+    let appref2 = app.upgrade_ref();
     tokio::spawn(async move {
         loop_recv(appref2, &mut client2).await;
     });
@@ -477,6 +427,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // use std::future::Future;
+    // pub struct SomeStruct {
+    //     f: dyn FnMut(&mut ApplicationContext<'_>) -> dyn Future<Output = ()>,
+    // }
+    // async fn some_f(app: &mut ApplicationContext<'_>) {
+    //     debug!(
+    //         "MT? {:?}",
+    //         app.is_input_device_active(InputDevice::Multitouch)
+    //     );
+    // }
+    // let ss = SomeStruct { f: some_f };
+    // let appref3 = app.upgrade_ref();
+    // tokio::spawn(async move {
+    //     (ss.f)(appref3);
+    // });
+
     // Blocking call to process events from digitizer + touchscreen + physical buttons
     app.dispatch_events(true, true, true);
 
@@ -489,6 +455,7 @@ use tonic::Request;
 
 use tokio::time::delay_for;
 
+use whiteboard::drawing::Color;
 use whiteboard::whiteboard_client::WhiteboardClient;
 use whiteboard::{Drawing, Event, RecvEventsReq, SendEventReq};
 
@@ -514,11 +481,78 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, client: &mut WhiteboardClie
     while let Some(event) = stream.message().await.unwrap() {
         println!("EVENT = {:?}", event);
         if let Some(drawing) = event.event_drawing {
-            delay_for(Duration::from_secs(1)).await;
-            debug!(
-                "MT? {:?}",
-                app.is_input_device_active(InputDevice::Multitouch)
-            );
+            let col = match drawing.color() {
+                Color::White => color::WHITE,
+                _ => color::BLACK,
+            };
+            let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
+            let len = xs.len();
+            if len < 3 {
+                continue;
+            }
+            for i in 0..len - 2 {
+                let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
+                    // start
+                    (
+                        cgmath::Point2 {
+                            x: xs[i + 0],
+                            y: ys[i + 0],
+                        },
+                        ps[i + 0],
+                        ws[i + 0],
+                    ),
+                    // ctrl
+                    (
+                        cgmath::Point2 {
+                            x: xs[i + 1],
+                            y: ys[i + 1],
+                        },
+                        ps[i + 1],
+                        ws[i + 1],
+                    ),
+                    // end
+                    (
+                        cgmath::Point2 {
+                            x: xs[i + 2],
+                            y: ys[i + 2],
+                        },
+                        ps[i + 2],
+                        ws[i + 2],
+                    ),
+                ];
+                let radii: Vec<f32> = points
+                    .iter()
+                    .map(|(_, pressure, tip)| (((*tip as f32) * (*pressure as f32)) / 2048.) / 2.)
+                    .collect();
+                // calculate control points
+                let start_point = points[2].0.midpoint(points[1].0);
+                let ctrl_point = points[1].0;
+                let end_point = points[1].0.midpoint(points[0].0);
+                // calculate diameters
+                let start_width = radii[2] + radii[1];
+                let ctrl_width = radii[1] * 2.;
+                let end_width = radii[1] + radii[0];
+
+                let framebuffer = app.get_framebuffer_ref();
+                let rect = framebuffer.draw_dynamic_bezier(
+                    (start_point, start_width),
+                    (ctrl_point, ctrl_width),
+                    (end_point, end_width),
+                    10,
+                    col,
+                );
+                framebuffer.partial_refresh(
+                    &rect,
+                    PartialRefreshMode::Async,
+                    waveform_mode::WAVEFORM_MODE_DU,
+                    display_temp::TEMP_USE_REMARKABLE_DRAW,
+                    dither_mode::EPDC_FLAG_EXP1,
+                    DRAWING_QUANT_BIT,
+                    false,
+                );
+
+                delay_for(Duration::from_millis(2)).await;
+            }
         }
     }
 }
