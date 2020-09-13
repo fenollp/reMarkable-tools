@@ -35,7 +35,7 @@ update:
 debug: DEVICE ?= root@10.11.99.1
 debug: all
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	scp $(BIN) $(DEVICE):
+	scp -pC $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'
 
 src/strokes/strokes_generated.rs: src/strokes/strokes.fbs
@@ -47,5 +47,5 @@ whiteboard: BIN = ./target/$(TARGET)/release/$(EXE)
 whiteboard: fmt
 	cross build --release --frozen --locked --offline --target=$(TARGET) --bin $(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	scp $(BIN) $(DEVICE):
+	scp -pC $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'

@@ -4,7 +4,6 @@ FROM rabbitmq:3.8.8-management-alpine
 # apt
 # FROM rabbitmq:3.8.8-management
 #
-MAINTAINER pierrefenoll@gmail.com
 ENV LANG C.UTF-8
 
 #

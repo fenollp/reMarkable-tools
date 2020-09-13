@@ -438,12 +438,10 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
 
 fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
     let framebuffer = app.get_framebuffer_ref();
-    if let multitouch::MultitouchEvent::Touch {
-        gesture_seq: _,
-        finger_id: _,
-        position,
-    } = input
+    if let multitouch::MultitouchEvent::Press { finger }
+    | multitouch::MultitouchEvent::Move { finger } = input
     {
+        let position = finger.pos;
         if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
             return;
         }

@@ -5,8 +5,7 @@ authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
 edition = "2018"
 
 [profile.release]
-# debug = true
-lto = "thin"
+lto = "fat" # "fat" xor "thin". "thin" is faster but crashes on some binaries
 
 [dependencies]
 atomic = { version = "^0", features = ["nightly"] }

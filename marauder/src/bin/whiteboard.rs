@@ -224,10 +224,10 @@ fn maybe_send_drawing() {
     ps.reserve(len);
     for i in 0..len {
         let dot = strokes[i];
-        ws[i] = dot.1;
-        xs[i] = dot.2;
-        ys[i] = dot.3;
-        ps[i] = dot.4;
+        ws.push(dot.1);
+        xs.push(dot.2);
+        ys.push(dot.3);
+        ps.push(dot.4);
     }
 
     let col = match strokes[0].0 {
@@ -352,20 +352,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             inner: UIElement::Text {
                 text: DrawMode::default().to_string(),
                 border_px: 5,
-                foreground: color::BLACK,
-                scale: 45.0,
-            },
-            ..Default::default()
-        },
-    );
-
-    app.add_element(
-        "displaySize",
-        UIElementWrapper {
-            position: (1080, 670).into(),
-            inner: UIElement::Text {
-                text: format!("size: {0}", G_DRAW_MODE.load(Ordering::Relaxed).get_size()),
-                border_px: 0,
                 foreground: color::BLACK,
                 scale: 45.0,
             },
