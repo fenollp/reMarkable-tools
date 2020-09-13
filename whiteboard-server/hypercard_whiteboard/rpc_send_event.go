@@ -10,47 +10,64 @@ import (
 
 var errBadRequest = errors.New("bad request")
 
-func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) error {
+func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) (err error) {
+	log := NewLogFromCtx(ctx)
+
 	event := req.GetEvent()
 	if createdAt := event.GetCreatedAt(); createdAt != 0 {
-		return errBadRequest
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
 	}
 	if userID := event.GetUserId(); userID != "" {
-		return errBadRequest
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
 	}
 	if roomID := event.GetRoomId(); roomID != "" {
-		return errBadRequest
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
 	}
 	if !xorN(
 		event.GetEventDrawing() != nil,
 		event.GetEventUserLeftTheRoom() != false,
 		event.GetEventUserJoinedTheRoom() != false,
 	) {
-		return errBadRequest
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
 	}
 
 	roomIDs := req.GetRoomIds()
 	if hasDuplicates(roomIDs) {
-		return errBadRequest
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
 	}
 	for _, roomID := range roomIDs {
-		if err := ntui(roomID); err != nil {
-			return err
+		if err = ntui(roomID); err != nil {
+			log.Error("", zap.Error(err))
+			return
 		}
 	}
 
 	if drawing := event.GetEventDrawing(); drawing != nil {
 		if drawing.GetColor() == Drawing_invisible {
-			return errBadRequest
+			err = errBadRequest
+			log.Error("", zap.Error(err))
+			return
 		}
 		if len(drawing.GetXs()) == 0 ||
 			len(drawing.GetXs()) != len(drawing.GetYs()) ||
 			len(drawing.GetXs()) != len(drawing.GetPressures()) ||
 			len(drawing.GetXs()) != len(drawing.GetWidths()) {
-			return errBadRequest
+			err = errBadRequest
+			log.Error("", zap.Error(err))
+			return
 		}
 	}
-	return nil
+	return
 }
 
 // SendEvent ...

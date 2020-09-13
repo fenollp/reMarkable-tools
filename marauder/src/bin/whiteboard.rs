@@ -32,7 +32,6 @@ use std::process::Command;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
-use std::thread::sleep;
 use std::time::Duration;
 
 // This region will have the following size at rest:
@@ -78,7 +77,7 @@ fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
 // ## Miscellaneous
 // ####################
 
-fn loop_update_battime(app: &mut ApplicationContext) {
+async fn loop_update_battime(app: &mut ApplicationContext<'_>) {
     let element = app.get_element_by_name("battime").unwrap();
     loop {
         if let UIElement::Text { ref mut text, .. } = element.write().inner {
@@ -88,7 +87,7 @@ fn loop_update_battime(app: &mut ApplicationContext) {
             *text = format!("{}% ~ {:<80} {}", percents, status, now);
         }
         app.draw_element("battime");
-        sleep(Duration::from_millis(37_000));
+        delay_for(Duration::from_millis(37_000)).await;
     }
 }
 
@@ -213,6 +212,7 @@ fn maybe_send_drawing() {
     if len < 3 {
         return;
     }
+    debug!("strokes.len() = {:?}", len);
 
     let mut ws = Vec::<u32>::new();
     let mut xs = Vec::<f32>::new();
@@ -235,26 +235,31 @@ fn maybe_send_drawing() {
         _ => Color::Black,
     };
 
+    debug!("locking TX");
     let wtx = TX.lock().unwrap();
-    if let Some(ref tx) = *wtx {
-        let drawing = Drawing {
-            xs,
-            ys,
-            pressures: ps,
-            widths: ws,
-            color: col as i32,
-        };
-        tx.send(drawing).unwrap();
-
-        strokes.clear();
-    }
+    match &*wtx {
+        Some(ref tx) => {
+            let drawing = Drawing {
+                xs,
+                ys,
+                pressures: ps,
+                widths: ws,
+                color: col as i32,
+            };
+            tx.send(drawing).unwrap();
+        }
+        e => error!("e = {:?}", e),
+    };
+    debug!("unlocked TX");
+    strokes.clear();
 }
 
 fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
     if let multitouch::MultitouchEvent::Press { finger }
     | multitouch::MultitouchEvent::Move { finger } = input
     {
-        if !CANVAS_REGION.contains_point(&finger.pos.cast().unwrap()) {
+        let position = finger.pos;
+        if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
             return;
         }
     }
@@ -318,9 +323,40 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     };
 }
 
+use docopt::Docopt;
+use serde::Deserialize;
+
+const USAGE: &'static str = "
+reMarkable whiteboard HyperCard.
+
+Usage:
+  whiteboard [--host=<HOST>] [--user=USER] [--room=<ROOM>]
+  whiteboard (-h | --help)
+  whiteboard --version
+
+Options:
+  --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
+  --user=<USER>  User to connect as [default: Jane].
+  --room=<ROOM>  Room to join [default: living-room].
+  -h --help      Show this screen.
+  --version      Show version.
+";
+
+#[derive(Debug, Deserialize, Clone)]
+struct Args {
+    flag_host: String,
+    flag_user: String,
+    flag_room: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.deserialize())
+        .unwrap_or_else(|e| e.exit());
+    debug!("{:?}", args);
 
     // Takes callback functions as arguments
     // They are called with the event and the &mut framebuffer
@@ -376,37 +412,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    info!("Connecting...");
-    let channel = Endpoint::from_static("http://fknwkdacd.com:10000")
+    let host = args.clone().flag_host;
+    info!("Connecting to {:?}...", host);
+    let channel = Endpoint::from_shared(host)
+        .unwrap()
+        .timeout(Duration::from_secs(5))
         .connect()
-        .await
-        .unwrap();
+        .await?;
     let mut client1 = WhiteboardClient::new(channel.clone());
     let mut client2 = WhiteboardClient::new(channel);
 
     let appref1 = app.upgrade_ref();
     tokio::spawn(async move {
-        loop_update_battime(appref1);
+        loop_update_battime(appref1).await;
     });
+
+    let args2 = args.clone();
     let appref2 = app.upgrade_ref();
+    debug!("spawn-ing loop_recv");
     tokio::spawn(async move {
-        loop_recv(appref2, &mut client2).await;
+        debug!("spawn-ed loop_recv");
+        loop_recv(appref2, &mut client2, args2).await;
     });
 
     info!("Init complete. Beginning event dispatch...");
 
     tokio::spawn(async move {
+        debug!("spawn-ed TXer");
         let (tx, rx) = std::sync::mpsc::channel();
         {
+            debug!("locking TX");
             let mut wtx = TX.lock().unwrap();
             *wtx = Some(tx.to_owned());
+            debug!("unlocked TX");
         }
         loop {
             let rcvd = rx.recv();
+            debug!("rcvd");
             match rcvd {
-                Ok(drawing) => send_drawing(&mut client1, drawing).await,
+                Ok(drawing) => send_drawing(&mut client1, drawing, &args).await,
                 Err(e) => error!("!rx {:?}", e),
             }
+            tokio::task::yield_now().await;
         }
     });
 
@@ -426,9 +473,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     (ss.f)(appref3);
     // });
 
+    // tokio::spawn(async move {
+    //     debug!("spawn-ed dispatch_events");
     // Blocking call to process events from digitizer + touchscreen + physical buttons
     app.dispatch_events(true, true, true);
+    // });
 
+    // loop {}
     Ok(())
 }
 
@@ -446,17 +497,21 @@ pub mod whiteboard {
     tonic::include_proto!("hypercard.whiteboard");
 }
 
-fn add_xuser<T>(req: &mut Request<T>) {
-    let user_id = "Joe".parse().unwrap();
+fn add_xuser<T>(req: &mut Request<T>, user: String) {
+    let user_id = user.parse().unwrap();
     let md = Request::metadata_mut(req);
     assert!(md.insert("x-user", user_id).is_none());
 }
 
-async fn loop_recv(app: &mut ApplicationContext<'_>, client: &mut WhiteboardClient<Channel>) {
+async fn loop_recv(
+    app: &mut ApplicationContext<'_>,
+    client: &mut WhiteboardClient<Channel>,
+    args: Args,
+) {
     let mut req = Request::new(RecvEventsReq {
-        room_id: "living-room".into(),
+        room_id: args.flag_room,
     });
-    add_xuser(&mut req);
+    add_xuser(&mut req, args.flag_user);
     info!("Receiving... {:?}", req);
 
     let mut stream = client.recv_events(req).await.unwrap().into_inner();
@@ -470,6 +525,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, client: &mut WhiteboardClie
             };
             let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
             let len = xs.len();
+            debug!("xs.len() = {:?}", len);
             if len < 3 {
                 continue;
             }
@@ -537,10 +593,11 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, client: &mut WhiteboardClie
                 delay_for(Duration::from_millis(2)).await;
             }
         }
+        tokio::task::yield_now().await;
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) {
+async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, args: &Args) {
     let mut req = Request::new(SendEventReq {
         event: Some(Event {
             created_at: 0,
@@ -550,9 +607,9 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
             event_user_left_the_room: true,
             event_user_joined_the_room: false,
         }),
-        room_ids: vec!["living-room".into()],
+        room_ids: vec![args.flag_room.to_owned()],
     });
-    add_xuser(&mut req);
+    add_xuser(&mut req, args.flag_user.to_owned());
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)

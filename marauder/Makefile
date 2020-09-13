@@ -6,6 +6,7 @@
 TARGET = armv7-unknown-linux-musleabihf
 EXE = marauder
 BIN = ./target/$(TARGET)/release/$(EXE)
+IMG ?= rust-build-remarkable:latest
 DEVICE ?= remarkable
 RUN ?= docker run --rm --user $$(id -u):$$(id -g)
 FLATC ?= $(RUN) -v "$$PWD"/src:/src -v "$$PWD"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
@@ -41,11 +42,32 @@ debug: all
 src/strokes/strokes_generated.rs: src/strokes/strokes.fbs
 	$(FLATC) --rust -o /dst/strokes /$^
 
+.PHONY: docker-env
+docker-env:
+	cd docker-toolchain && docker build \
+		--build-arg UNAME=builder \
+		--build-arg UID=$(shell id -u) \
+		--build-arg GID=$(shell id -g) \
+		--build-arg ostype=${shell uname} \
+		--tag $(IMG) .
+
 whiteboard: DEVICE ?= root@10.11.99.1
 whiteboard: EXE = whiteboard
-whiteboard: BIN = ./target/$(TARGET)/release/$(EXE)
-whiteboard: fmt
-	cross build --release --frozen --locked --offline --target=$(TARGET) --bin $(EXE)
+whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
+whiteboard: fmt docker-env
+# 	cross build --release --frozen --locked --offline --target=$(TARGET) --bin $(EXE)
+	docker volume create cargo-registry
+	docker run \
+		--rm \
+		--user builder \
+		-v $(shell pwd):/home/builder/libremarkable:rw \
+		-v cargo-registry:/home/builder/.cargo/registry \
+		-w /home/builder/libremarkable \
+		$(IMG) \
+		cargo build --release --target=armv7-unknown-linux-gnueabihf --bin $(EXE)
+# 		cargo build --release --target=armv7-unknown-linux-gnueabihf --bin $(EXE) --frozen --locked --offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	scp -pC $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'
+
+
