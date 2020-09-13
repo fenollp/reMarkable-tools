@@ -76,15 +76,16 @@ func (rmq *rabbitService) newClient(ctx context.Context, kind string, coCh chann
 	return
 }
 
-func (c *rabbitClient) publish(ctx context.Context, key string, pb proto.Message) (err error) {
+func (c *rabbitClient) publish(ctx context.Context, event *Event) (err error) {
 	log := NewLogFromCtx(ctx)
+	rk := event.rk()
 
 	var payload []byte
 	bytes := -1
 	{
-		log.Debug("encoding", zap.Reflect("pb", pb))
+		log.Debug("encoding", zap.Reflect("event", event))
 		start := time.Now()
-		if payload, err = proto.Marshal(pb); err != nil {
+		if payload, err = proto.Marshal(event); err != nil {
 			log.Error("", zap.Error(err))
 			return
 		}
@@ -93,11 +94,11 @@ func (c *rabbitClient) publish(ctx context.Context, key string, pb proto.Message
 			zap.Duration("in", time.Since(start)))
 	}
 
-	log.Debug("publishing", zap.String("rk", key))
+	log.Debug("publishing", zap.String("rk", rk))
 	start := time.Now()
 	if err = c.ch.Publish(
 		rabbitExchange,
-		key,
+		rk,
 		false, // mandatory
 		false, // immediate
 		amqp.Publishing{
@@ -114,9 +115,7 @@ func (c *rabbitClient) publish(ctx context.Context, key string, pb proto.Message
 	// Starts from 1
 	c.deliveryTag++
 	dtag := c.deliveryTag
-	log.Debug("published", zap.Int("bytes", bytes),
-		zap.Uint64("dtag", dtag),
-		zap.Duration("in", time.Since(start)))
+	log.Debug("published", zap.Int("bytes", bytes), zap.Uint64("dtag", dtag))
 
 	select {
 	case confirmed := <-c.confirms:
@@ -138,31 +137,35 @@ func (c *rabbitClient) publish(ctx context.Context, key string, pb proto.Message
 
 	case <-time.After(rabbitAckTimeout):
 	}
-	err = fmt.Errorf("no ack from %s to #%d after %v", key, dtag, rabbitAckTimeout)
+	err = fmt.Errorf("no ack from %s to #%d after %v", rk, dtag, rabbitAckTimeout)
 	log.Error("", zap.Error(err))
 	return
 }
 
-func (c *rabbitClient) qDeclare(ctx context.Context, q string) (r amqp.Queue, err error) {
+func (c *rabbitClient) qDeclare(ctx context.Context, q string) (name string, err error) {
 	log := NewLogFromCtx(ctx)
 	args := amqp.Table{"x-message-ttl": rabbitMessageExpiration}
 	if err = args.Validate(); err != nil {
 		log.Error("", zap.Error(err))
 		return
 	}
+	var r amqp.Queue
 	start := time.Now()
 	if r, err = c.ch.QueueDeclare(
 		q,     // name of the queue
 		false, // durable
 		true,  // delete when unused
-		false, // exclusive
+		true,  // exclusive
 		false, // noWait
 		args,  // arguments
 	); err != nil {
 		log.Error("", zap.Error(err))
 		return
 	}
-	log.Debug("declared", zap.String("q", q),
+	name = r.Name
+	log.Debug("declared",
+		zap.String("q", q),
+		zap.Any("r", r),
 		zap.Int("messages", r.Messages),
 		zap.Int("consumers", r.Consumers),
 		zap.Duration("in", time.Since(start)))

@@ -101,10 +101,7 @@ func (srv *Server) SendEvent(ctx context.Context, req *SendEventReq) (rep *SendE
 			EventUserLeftTheRoom:   req.GetEvent().GetEventUserLeftTheRoom(),
 			EventUserJoinedTheRoom: req.GetEvent().GetEventUserJoinedTheRoom(),
 		}
-
-		rk := event.rk()
-		log.Debug("publishing", zap.String("rk", rk))
-		if err = c.publish(ctx, rk, event); err != nil {
+		if err = c.publish(ctx, event); err != nil {
 			return
 		}
 	}

@@ -416,7 +416,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Connecting to {:?}...", host);
     let channel = Endpoint::from_shared(host)
         .unwrap()
-        .timeout(Duration::from_secs(5))
+        // .timeout(Duration::from_secs(5))
         .connect()
         .await?;
     let mut client1 = WhiteboardClient::new(channel.clone());
@@ -604,7 +604,7 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
             user_id: "".into(),
             room_id: "".into(),
             event_drawing: Some(drawing),
-            event_user_left_the_room: true,
+            event_user_left_the_room: false,
             event_user_joined_the_room: false,
         }),
         room_ids: vec![args.flag_room.to_owned()],

@@ -41,16 +41,16 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 		userID: "*",
 		kind:   "*",
 	}.String()
-	queue := fmt.Sprintf("sub.%s.%s", bk, ctxUID(ctx))
 
-	log.Debug("listening for events", zap.String("bk", bk), zap.String("q", queue))
+	log.Debug("listening for events", zap.String("bk", bk))
 	var c *rabbitClient
 	if c, err = srv.rmq.newSubClient(ctx); err != nil {
 		return
 	}
 	defer c.close(ctx)
 
-	if _, err = c.qDeclare(ctx, queue); err != nil {
+	var queue string
+	if queue, err = c.qDeclare(ctx, ""); err != nil {
 		return
 	}
 	if err = c.qBind(ctx, queue, bk); err != nil {
@@ -71,9 +71,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			UserId:                 ctxUID(ctx),
 			EventUserJoinedTheRoom: true,
 		}
-		rk := event.rk()
-		log.Debug("publishing", zap.String("rk", rk))
-		if err = c.publish(ctx, rk, event); err != nil {
+		if err = c.publish(ctx, event); err != nil {
 			return
 		}
 	}
@@ -86,9 +84,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			UserId:               ctxUID(ctx),
 			EventUserLeftTheRoom: true,
 		}
-		rk := event.rk()
-		log.Debug("publishing", zap.String("rk", rk))
-		if err = c.publish(ctx, rk, event); err != nil {
+		if err = c.publish(ctx, event); err != nil {
 			return
 		}
 	}()
