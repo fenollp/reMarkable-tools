@@ -412,74 +412,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Draw the scene
     app.draw_elements();
 
-    let host = args.clone().flag_host;
-    info!("Connecting to {:?}...", host);
-    let channel = Endpoint::from_shared(host)
-        .unwrap()
-        // .timeout(Duration::from_secs(5))
-        .connect()
-        .await?;
-    let mut client1 = WhiteboardClient::new(channel.clone());
-    let mut client2 = WhiteboardClient::new(channel);
-
     let appref1 = app.upgrade_ref();
     tokio::spawn(async move {
         loop_update_battime(appref1).await;
     });
 
+    let host = args.clone().flag_host;
+    info!("[main] connecting to {:?}...", host);
+    let channel1 = Endpoint::from_shared(host)
+        .unwrap()
+        // .timeout(Duration::from_secs(5))
+        .connect()
+        .await?;
+    // FIXME: use only one connection
+    let mut client1 = WhiteboardClient::new(channel1);
+    let channel2 = Endpoint::from_shared(args.clone().flag_host)
+        .unwrap()
+        .connect()
+        .await?;
+    let mut client2 = WhiteboardClient::new(channel2);
+
     let args2 = args.clone();
     let appref2 = app.upgrade_ref();
-    debug!("spawn-ing loop_recv");
+    info!("[loop_recv] spawn-ing");
     tokio::spawn(async move {
-        debug!("spawn-ed loop_recv");
+        info!("[loop_recv] spawn-ed");
         loop_recv(appref2, &mut client2, args2).await;
+        info!("[loop_recv] terminated");
     });
 
-    info!("Init complete. Beginning event dispatch...");
-
+    info!("[TXer] spawn-ing");
     tokio::spawn(async move {
-        debug!("spawn-ed TXer");
+        info!("[TXer] spawn-ed");
         let (tx, rx) = std::sync::mpsc::channel();
         {
-            debug!("locking TX");
+            info!("[TXer] locking");
             let mut wtx = TX.lock().unwrap();
             *wtx = Some(tx.to_owned());
-            debug!("unlocked TX");
+            info!("[TXer] unlocked");
         }
         loop {
             let rcvd = rx.recv();
-            debug!("rcvd");
+            debug!("[TXer] FWDing...");
             match rcvd {
                 Ok(drawing) => send_drawing(&mut client1, drawing, &args).await,
-                Err(e) => error!("!rx {:?}", e),
+                Err(e) => error!("[TXer] failed to FWD: {:?}", e),
             }
             tokio::task::yield_now().await;
         }
     });
 
-    // use std::future::Future;
-    // pub struct SomeStruct {
-    //     f: dyn FnMut(&mut ApplicationContext<'_>) -> dyn Future<Output = ()>,
-    // }
-    // async fn some_f(app: &mut ApplicationContext<'_>) {
-    //     debug!(
-    //         "MT? {:?}",
-    //         app.is_input_device_active(InputDevice::Multitouch)
-    //     );
-    // }
-    // let ss = SomeStruct { f: some_f };
-    // let appref3 = app.upgrade_ref();
-    // tokio::spawn(async move {
-    //     (ss.f)(appref3);
-    // });
-
-    // tokio::spawn(async move {
-    //     debug!("spawn-ed dispatch_events");
+    info!("Init complete. Beginning event dispatch...");
     // Blocking call to process events from digitizer + touchscreen + physical buttons
     app.dispatch_events(true, true, true);
-    // });
 
-    // loop {}
     Ok(())
 }
 
@@ -512,12 +498,14 @@ async fn loop_recv(
         room_id: args.flag_room,
     });
     add_xuser(&mut req, args.flag_user);
-    info!("Receiving... {:?}", req);
 
+    info!("[loop_recv] creating stream");
     let mut stream = client.recv_events(req).await.unwrap().into_inner();
+    info!("[loop_recv] receiving...");
 
     while let Some(event) = stream.message().await.unwrap() {
-        println!("EVENT = {:?}", event);
+        debug!("[loop_recv] received event {:?}", event);
+
         if let Some(drawing) = event.event_drawing {
             let col = match drawing.color() {
                 Color::White => color::WHITE,
@@ -525,7 +513,7 @@ async fn loop_recv(
             };
             let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
             let len = xs.len();
-            debug!("xs.len() = {:?}", len);
+            debug!("[loop_recv] xs.len() = {:?}", len);
             if len < 3 {
                 continue;
             }
@@ -589,11 +577,11 @@ async fn loop_recv(
                     DRAWING_QUANT_BIT,
                     false,
                 );
-
                 delay_for(Duration::from_millis(2)).await;
             }
+            info!("[loop_recv] painted");
         }
-        tokio::task::yield_now().await;
+        // tokio::task::yield_now().await;
     }
 }
 

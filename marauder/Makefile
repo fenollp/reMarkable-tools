@@ -55,19 +55,16 @@ whiteboard: DEVICE ?= root@10.11.99.1
 whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
 whiteboard: fmt docker-env
-# 	cross build --release --frozen --locked --offline --target=$(TARGET) --bin $(EXE)
+# 	cross build --release --bin $(EXE) --target=$(TARGET) --frozen --locked --offline
 	docker volume create cargo-registry
 	docker run \
-		--rm \
+		-t --rm \
 		--user builder \
 		-v $(shell pwd):/home/builder/libremarkable:rw \
 		-v cargo-registry:/home/builder/.cargo/registry \
 		-w /home/builder/libremarkable \
 		$(IMG) \
-		cargo build --release --target=armv7-unknown-linux-gnueabihf --bin $(EXE)
-# 		cargo build --release --target=armv7-unknown-linux-gnueabihf --bin $(EXE) --frozen --locked --offline
+		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	scp -pC $(BIN) $(DEVICE):
-	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'
-
-
+	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=http://192.168.1.41:10000 | tail -f'

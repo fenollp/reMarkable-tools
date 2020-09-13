@@ -75,6 +75,19 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			return
 		}
 	}
+	// TODO: remove
+	go func() {
+		time.Sleep(5 * time.Second)
+		event := &Event{
+			CreatedAt:    time.Now().UnixNano(),
+			RoomId:       req.GetRoomId(),
+			UserId:       "HyperCard--whiteboard-server",
+			EventDrawing: &eventDrawingHouse,
+		}
+		if err = c.publish(ctx, event); err != nil {
+			return
+		}
+	}()
 
 	// Leave event
 	defer func() {

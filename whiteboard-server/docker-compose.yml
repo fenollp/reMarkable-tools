@@ -2,8 +2,7 @@ version: '3.7'
 services:
 
   rabbitmq:
-    build: ./rabbitmq
-    image: rmq
+    image: rabbitmq:3.8.8-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: &RABBITMQ_USER '4LKGPXSQPnXnDi'
       RABBITMQ_DEFAULT_PASS: &RABBITMQ_PASS '3FhApsePsokCLY'
@@ -21,6 +20,9 @@ services:
     - rabbitmq
     build: .
     image: wb
+    # hostname: wb
+    # container_name: wb
+    # restart: unless-stopped
     environment:
       PORT: '10000'
       RABBITMQ_EXCHANGE: *RABBITMQ_EXCHANGE
