@@ -7,10 +7,8 @@ extern crate log;
 extern crate env_logger;
 
 use atomic::Atomic;
-use chrono::DateTime;
-use chrono::Local;
+use docopt::Docopt;
 use libremarkable::appctx::ApplicationContext;
-use libremarkable::battery;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
@@ -23,16 +21,50 @@ use libremarkable::input::wacom;
 use libremarkable::input::InputDevice;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
-use libremarkable::ui_extensions::element::UIElementHandle;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use marauder::modes::draw::DrawMode;
 use marauder::modes::touch::TouchMode;
+use serde::Deserialize;
 use std::collections::VecDeque;
 use std::process::Command;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Duration;
+use tokio::time::delay_for;
+use tonic::transport::Channel;
+use tonic::transport::Endpoint;
+use tonic::Request;
+use whiteboard::drawing::Color;
+use whiteboard::whiteboard_client::WhiteboardClient;
+use whiteboard::{Drawing, Event, RecvEventsReq, SendEventReq};
+
+pub mod whiteboard {
+    tonic::include_proto!("hypercard.whiteboard");
+}
+
+const USAGE: &'static str = "
+reMarkable whiteboard HyperCard.
+
+Usage:
+  whiteboard [--host=<HOST>] [--user=USER] [--room=<ROOM>]
+  whiteboard (-h | --help)
+  whiteboard --version
+
+Options:
+  --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
+  --user=<USER>  User to connect as [default: Jane].
+  --room=<ROOM>  Room to join [default: living-room].
+  -h --help      Show this screen.
+  --version      Show version.
+";
+
+#[derive(Debug, Deserialize, Clone)]
+struct Args {
+    flag_host: String,
+    flag_user: String,
+    flag_room: String,
+}
 
 // This region will have the following size at rest:
 //   raw: 5896 kB
@@ -55,45 +87,81 @@ lazy_static! {
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
 
-// ####################
-// ## Button Handlers
-// ####################
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
 
-fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
-    let (new_mode, next_name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
-        DrawMode::Erase(s) => (DrawMode::Draw(s), "Switch to BLACK".to_owned()),
-        DrawMode::Draw(s) => (DrawMode::Erase(s), "Switch to WHITE".to_owned()),
-    };
-    G_DRAW_MODE.store(new_mode, Ordering::Relaxed);
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.deserialize())
+        .unwrap_or_else(|e| e.exit());
+    debug!("{:?}", args);
 
-    let element = app.get_element_by_name("colorToggle").unwrap();
-    if let UIElement::Text { ref mut text, .. } = element.write().inner {
-        *text = next_name;
-    }
-    app.draw_element("colorToggle");
-}
+    // Takes callback functions as arguments
+    // They are called with the event and the &mut framebuffer
+    let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
 
-// ####################
-// ## Miscellaneous
-// ####################
+    // Alternatively we could have called `app.execute_lua("fb.clear()")`
+    app.clear(true);
 
-async fn loop_update_battime(app: &mut ApplicationContext<'_>) {
-    let element = app.get_element_by_name("battime").unwrap();
-    loop {
-        if let UIElement::Text { ref mut text, .. } = element.write().inner {
-            let now = (Local::now() as DateTime<Local>).format("%F %r");
-            let status = battery::human_readable_charging_status().unwrap();
-            let percents = battery::percentage().unwrap();
-            *text = format!("{}% ~ {:<80} {}", percents, status, now);
+    // Draw the borders for the canvas region
+    app.add_element(
+        "canvasRegion",
+        UIElementWrapper {
+            position: CANVAS_REGION.top_left().cast().unwrap() + cgmath::vec2(0, -2),
+            refresh: UIConstraintRefresh::RefreshAndWait,
+            inner: UIElement::Region {
+                size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
+                border_px: 2,
+                border_color: color::BLACK,
+            },
+            ..Default::default()
+        },
+    );
+
+    app.draw_elements();
+
+    let host = args.clone().flag_host;
+    info!("[main] connecting to {:?}...", host);
+    let channel = Endpoint::from_shared(host).unwrap().connect().await?;
+    let mut client1 = WhiteboardClient::new(channel.clone());
+    let mut client2 = WhiteboardClient::new(channel.clone());
+
+    let args2 = args.clone();
+    let appref2 = app.upgrade_ref();
+    info!("[loop_recv] spawn-ing");
+    tokio::spawn(async move {
+        info!("[loop_recv] spawn-ed");
+        loop_recv(appref2, &mut client2, args2).await;
+        info!("[loop_recv] terminated");
+    });
+
+    info!("[TXer] spawn-ing");
+    tokio::spawn(async move {
+        info!("[TXer] spawn-ed");
+        let (tx, rx) = std::sync::mpsc::channel();
+        {
+            info!("[TXer] locking");
+            let mut wtx = TX.lock().unwrap();
+            *wtx = Some(tx.to_owned());
+            info!("[TXer] unlocked");
         }
-        app.draw_element("battime");
-        delay_for(Duration::from_millis(37_000)).await;
-    }
-}
+        loop {
+            let rcvd = rx.recv();
+            debug!("[TXer] FWDing...");
+            match rcvd {
+                Ok(drawing) => send_drawing(&mut client1, drawing, &args).await,
+                Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+            }
+            tokio::task::yield_now().await;
+        }
+    });
 
-// ####################
-// ## Input Handlers
-// ####################
+    info!("Init complete. Beginning event dispatch...");
+    // Blocking call to process events from digitizer + touchscreen + physical buttons
+    app.dispatch_events(true, true, true);
+
+    Ok(())
+}
 
 fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     match input {
@@ -254,15 +322,15 @@ fn maybe_send_drawing() {
     strokes.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
-    if let multitouch::MultitouchEvent::Press { finger }
-    | multitouch::MultitouchEvent::Move { finger } = input
-    {
-        let position = finger.pos;
-        if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
-            return;
-        }
-    }
+fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
+    // if let multitouch::MultitouchEvent::Press { finger }
+    // | multitouch::MultitouchEvent::Move { finger } = input
+    // {
+    //     let position = finger.pos;
+    //     if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
+    //         return;
+    //     }
+    // }
 }
 
 fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
@@ -284,26 +352,9 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
 
     match btn {
         gpio::PhysicalButton::RIGHT => {
-            let new_state = if app.is_input_device_active(InputDevice::Multitouch) {
+            if app.is_input_device_active(InputDevice::Multitouch) {
                 app.deactivate_input_device(InputDevice::Multitouch);
-                "Enable Touch"
-            } else {
-                app.activate_input_device(InputDevice::Multitouch);
-                "Disable Touch"
-            };
-
-            if let Some(ref elem) = app.get_element_by_name("tooltipRight") {
-                if let UIElement::Text {
-                    ref mut text,
-                    scale: _,
-                    foreground: _,
-                    border_px: _,
-                } = elem.write().inner
-                {
-                    *text = new_state.to_string();
-                }
             }
-            app.draw_element("tooltipRight");
         }
         gpio::PhysicalButton::MIDDLE | gpio::PhysicalButton::LEFT => {
             app.clear(btn == gpio::PhysicalButton::MIDDLE);
@@ -321,166 +372,6 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             info!("WAKEUP button(?) pressed(?)");
         }
     };
-}
-
-use docopt::Docopt;
-use serde::Deserialize;
-
-const USAGE: &'static str = "
-reMarkable whiteboard HyperCard.
-
-Usage:
-  whiteboard [--host=<HOST>] [--user=USER] [--room=<ROOM>]
-  whiteboard (-h | --help)
-  whiteboard --version
-
-Options:
-  --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
-  --user=<USER>  User to connect as [default: Jane].
-  --room=<ROOM>  Room to join [default: living-room].
-  -h --help      Show this screen.
-  --version      Show version.
-";
-
-#[derive(Debug, Deserialize, Clone)]
-struct Args {
-    flag_host: String,
-    flag_user: String,
-    flag_room: String,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-
-    let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
-    debug!("{:?}", args);
-
-    // Takes callback functions as arguments
-    // They are called with the event and the &mut framebuffer
-    let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
-
-    // Alternatively we could have called `app.execute_lua("fb.clear()")`
-    app.clear(true);
-
-    // Draw the borders for the canvas region
-    app.add_element(
-        "canvasRegion",
-        UIElementWrapper {
-            position: CANVAS_REGION.top_left().cast().unwrap() + cgmath::vec2(0, -2),
-            refresh: UIConstraintRefresh::RefreshAndWait,
-            inner: UIElement::Region {
-                size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
-                border_px: 2,
-                border_color: color::BLACK,
-            },
-            ..Default::default()
-        },
-    );
-
-    app.add_element(
-        "colorToggle",
-        UIElementWrapper {
-            position: (960, 580).into(),
-            onclick: Some(on_toggle_eraser),
-            inner: UIElement::Text {
-                text: DrawMode::default().to_string(),
-                border_px: 5,
-                foreground: color::BLACK,
-                scale: 45.0,
-            },
-            ..Default::default()
-        },
-    );
-
-    app.add_element(
-        "battime",
-        UIElementWrapper {
-            position: (30, 50).into(),
-            inner: UIElement::Text {
-                text: "Press POWER to return to reMarkable".to_owned(),
-                scale: 40.0,
-                foreground: color::BLACK,
-                border_px: 0,
-            },
-            ..Default::default()
-        },
-    );
-
-    // Draw the scene
-    app.draw_elements();
-
-    let appref1 = app.upgrade_ref();
-    tokio::spawn(async move {
-        loop_update_battime(appref1).await;
-    });
-
-    let host = args.clone().flag_host;
-    info!("[main] connecting to {:?}...", host);
-    let channel1 = Endpoint::from_shared(host)
-        .unwrap()
-        // .timeout(Duration::from_secs(5))
-        .connect()
-        .await?;
-    // FIXME: use only one connection
-    let mut client1 = WhiteboardClient::new(channel1);
-    let channel2 = Endpoint::from_shared(args.clone().flag_host)
-        .unwrap()
-        .connect()
-        .await?;
-    let mut client2 = WhiteboardClient::new(channel2);
-
-    let args2 = args.clone();
-    let appref2 = app.upgrade_ref();
-    info!("[loop_recv] spawn-ing");
-    tokio::spawn(async move {
-        info!("[loop_recv] spawn-ed");
-        loop_recv(appref2, &mut client2, args2).await;
-        info!("[loop_recv] terminated");
-    });
-
-    info!("[TXer] spawn-ing");
-    tokio::spawn(async move {
-        info!("[TXer] spawn-ed");
-        let (tx, rx) = std::sync::mpsc::channel();
-        {
-            info!("[TXer] locking");
-            let mut wtx = TX.lock().unwrap();
-            *wtx = Some(tx.to_owned());
-            info!("[TXer] unlocked");
-        }
-        loop {
-            let rcvd = rx.recv();
-            debug!("[TXer] FWDing...");
-            match rcvd {
-                Ok(drawing) => send_drawing(&mut client1, drawing, &args).await,
-                Err(e) => error!("[TXer] failed to FWD: {:?}", e),
-            }
-            tokio::task::yield_now().await;
-        }
-    });
-
-    info!("Init complete. Beginning event dispatch...");
-    // Blocking call to process events from digitizer + touchscreen + physical buttons
-    app.dispatch_events(true, true, true);
-
-    Ok(())
-}
-
-use tonic::transport::Channel;
-use tonic::transport::Endpoint;
-use tonic::Request;
-
-use tokio::time::delay_for;
-
-use whiteboard::drawing::Color;
-use whiteboard::whiteboard_client::WhiteboardClient;
-use whiteboard::{Drawing, Event, RecvEventsReq, SendEventReq};
-
-pub mod whiteboard {
-    tonic::include_proto!("hypercard.whiteboard");
 }
 
 fn add_xuser<T>(req: &mut Request<T>, user: String) {

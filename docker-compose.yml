@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+
+  nats:
+    image: nats:2-alpine
+    command:
+    - --user
+    - reMarkable-HyperCard
+    - --pass
+    - iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj
+    - -DVV
+    ports:
+    - '4222:4222'
+    - '6222:6222'
+    - '8222:8222'
