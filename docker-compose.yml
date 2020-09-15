@@ -3,13 +3,34 @@ services:
 
   nats:
     image: nats:2-alpine
+    environment:
+      # Only here so refs can be bound
+      _1: &NATS_USER 'reMarkable-HyperCard'
+      _2: &NATS_PASS 'iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj'
     command:
     - --user
-    - reMarkable-HyperCard
+    - *NATS_USER
     - --pass
-    - iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj
+    - *NATS_PASS
     - -DVV
     ports:
-    - '4222:4222'
-    - '6222:6222'
-    - '8222:8222'
+    - '127.0.0.1:4222:4222'
+    - '127.0.0.1:6222:6222'
+    - '127.0.0.1:8222:8222'
+
+  whiteboard:
+    depends_on:
+    - nats
+    build: ./whiteboard-server
+    image: wb
+    # hostname: wb
+    # container_name: wb
+    # restart: unless-stopped
+    environment:
+      PORT: '10000'
+      NATS_USER: *NATS_USER
+      NATS_PASS: *NATS_PASS
+      GRPC_GO_LOG_SEVERITY_LEVEL: info
+      GRPC_GO_LOG_VERBOSITY_LEVEL: 99
+    ports:
+    - '10000:10000'

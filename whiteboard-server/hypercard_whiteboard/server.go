@@ -12,15 +12,15 @@ var _ WhiteboardServer = &Server{} // Ensures all RPCs are implemented
 
 // Server holds connections to our services accessible by gRPC rpcs.
 type Server struct {
-	rmq *rabbitService
+	nc *natsClient
 }
 
 // Close ...
 func (srv *Server) Close(ctx context.Context) {
 	log := NewLogFromCtx(ctx)
 	// Shutdown server's services here
-	log.Info("closing rabbit conns")
-	srv.rmq.close(ctx)
+	log.Info("closing nats conn")
+	srv.nc.Close()
 }
 
 // NewServer opens connections to our services
@@ -32,12 +32,10 @@ func NewServer(ctx context.Context) (srv *Server, err error) {
 
 	// Start server's services here (Redis, RMQ, ...)
 
-	if err = srv.setupRabbit(ctx,
-		os.Getenv("RABBITMQ_EXCHANGE"),
-		os.Getenv("RABBITMQ_USER"),
-		os.Getenv("RABBITMQ_PASS"),
-		os.Getenv("RABBITMQ_VHOST"),
-		os.Getenv("RABBITMQ_HOST"),
+	if err = srv.setupNats(ctx,
+		"nats",
+		os.Getenv("NATS_USER"),
+		os.Getenv("NATS_PASS"),
 	); err != nil {
 		return
 	}

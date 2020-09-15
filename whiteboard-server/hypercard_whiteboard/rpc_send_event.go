@@ -30,10 +30,20 @@ func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) (er
 		return
 	}
 	if !xorN(
+		// MUST allow only one FIXME: use proto oneof
 		event.GetEventDrawing() != nil,
 		event.GetEventUserLeftTheRoom() != false,
 		event.GetEventUserJoinedTheRoom() != false,
 	) {
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
+	}
+	if false ||
+		// Disallow status events
+		event.GetEventUserLeftTheRoom() ||
+		event.GetEventUserJoinedTheRoom() ||
+		false {
 		err = errBadRequest
 		log.Error("", zap.Error(err))
 		return
@@ -86,12 +96,6 @@ func (srv *Server) SendEvent(ctx context.Context, req *SendEventReq) (rep *SendE
 		return
 	}
 
-	var c *rabbitClient
-	if c, err = srv.rmq.newPubClient(ctx); err != nil {
-		return
-	}
-	defer c.close(ctx)
-
 	for _, roomID := range req.GetRoomIds() {
 		event := &Event{
 			CreatedAt:              time.Now().UnixNano(),
@@ -101,7 +105,7 @@ func (srv *Server) SendEvent(ctx context.Context, req *SendEventReq) (rep *SendE
 			EventUserLeftTheRoom:   req.GetEvent().GetEventUserLeftTheRoom(),
 			EventUserJoinedTheRoom: req.GetEvent().GetEventUserJoinedTheRoom(),
 		}
-		if err = c.publish(ctx, event); err != nil {
+		if err = srv.nc.publish(ctx, event); err != nil {
 			return
 		}
 	}

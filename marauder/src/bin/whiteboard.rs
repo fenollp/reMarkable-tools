@@ -6,7 +6,6 @@ extern crate lazy_static;
 extern crate log;
 extern crate env_logger;
 
-use atomic::Atomic;
 use docopt::Docopt;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
@@ -23,7 +22,7 @@ use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use marauder::modes::draw::DrawMode;
-use marauder::modes::touch::TouchMode;
+// use prost::Message;
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::process::Command;
@@ -37,13 +36,14 @@ use tonic::transport::Endpoint;
 use tonic::Request;
 use whiteboard::drawing::Color;
 use whiteboard::whiteboard_client::WhiteboardClient;
-use whiteboard::{Drawing, Event, RecvEventsReq, SendEventReq};
+use whiteboard::{Drawing, Event};
+use whiteboard::{RecvEventsReq, SendEventReq};
 
 pub mod whiteboard {
     tonic::include_proto!("hypercard.whiteboard");
 }
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 reMarkable whiteboard HyperCard.
 
 Usage:
@@ -66,9 +66,6 @@ struct Args {
     flag_room: String,
 }
 
-// This region will have the following size at rest:
-//   raw: 5896 kB
-//   zstd: 10 kB
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: 720,
     left: 0,
@@ -77,8 +74,6 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 };
 
 lazy_static! {
-    static ref G_TOUCH_MODE: Atomic<TouchMode> = Atomic::new(TouchMode::OnlyUI);
-    static ref G_DRAW_MODE: Atomic<DrawMode> = Atomic::new(DrawMode::default());
     static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
@@ -86,6 +81,10 @@ lazy_static! {
     static ref STROKES: Mutex<Vec<(color, u32, f32, f32, i32)>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
+
+// fn category() -> String {
+//     "hc.wb.1".to_string()
+// }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,14 +95,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|e| e.exit());
     debug!("{:?}", args);
 
-    // Takes callback functions as arguments
-    // They are called with the event and the &mut framebuffer
     let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
-
-    // Alternatively we could have called `app.execute_lua("fb.clear()")`
     app.clear(true);
 
-    // Draw the borders for the canvas region
     app.add_element(
         "canvasRegion",
         UIElementWrapper {
@@ -124,40 +118,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("[main] connecting to {:?}...", host);
     let channel = Endpoint::from_shared(host).unwrap().connect().await?;
     let mut client1 = WhiteboardClient::new(channel.clone());
-    let mut client2 = WhiteboardClient::new(channel.clone());
+    let mut client2 = WhiteboardClient::new(channel);
+    // let nc = nats::Options::with_user_pass(
+    //     "reMarkable-HyperCard",
+    //     "iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj",
+    // )
+    // .with_name("reMarkable Whiteboard HyperCard")
+    // .connect(&host)
+    // .unwrap();
 
+    // let sub = nc
+    //     .subscribe(
+    //         &[
+    //             // hc wb 1 <room ID> <user ID> <kind>
+    //             category(),
+    //             args.clone().flag_room,
+    //             ">".to_string(),
+    //         ]
+    //         .join("."),
+    //     )
+    //     .unwrap();
     let args2 = args.clone();
-    let appref2 = app.upgrade_ref();
+    let appref = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
-    tokio::spawn(async move {
-        info!("[loop_recv] spawn-ed");
-        loop_recv(appref2, &mut client2, args2).await;
-        info!("[loop_recv] terminated");
+    tokio::task::spawn_blocking(move || {
+        //TODO: PR to allow async in spawn_blocking
+        let rt_handle = tokio::runtime::Handle::current();
+        rt_handle.block_on(async move {
+            info!("[loop_recv] spawn-ed");
+            loop_recv(appref, &mut client1, args2).await;
+            // loop_recv(appref, sub).await;
+            info!("[loop_recv] terminated");
+        });
     });
 
     info!("[TXer] spawn-ing");
-    tokio::spawn(async move {
-        info!("[TXer] spawn-ed");
-        let (tx, rx) = std::sync::mpsc::channel();
-        {
-            info!("[TXer] locking");
-            let mut wtx = TX.lock().unwrap();
-            *wtx = Some(tx.to_owned());
-            info!("[TXer] unlocked");
-        }
-        loop {
-            let rcvd = rx.recv();
-            debug!("[TXer] FWDing...");
-            match rcvd {
-                Ok(drawing) => send_drawing(&mut client1, drawing, &args).await,
-                Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+    tokio::task::spawn_blocking(move || {
+        let rt_handle = tokio::runtime::Handle::current();
+        rt_handle.block_on(async move {
+            info!("[TXer] spawn-ed");
+            let (tx, rx) = std::sync::mpsc::channel();
+            //TODO: let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            {
+                info!("[TXer] locking");
+                let mut wtx = TX.lock().unwrap();
+                *wtx = Some(tx.to_owned());
+                info!("[TXer] unlocked");
             }
-            tokio::task::yield_now().await;
-        }
+            loop {
+                let rcvd = rx.recv();
+                debug!("[TXer] FWDing...");
+                match rcvd {
+                    Ok(drawing) => send_drawing(&mut client2, drawing, &args).await,
+                    // Ok(drawing) => send_drawing(nc.to_owned(), drawing, &args).await,
+                    Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+                }
+            }
+        });
     });
 
     info!("Init complete. Beginning event dispatch...");
-    // Blocking call to process events from digitizer + touchscreen + physical buttons
     app.dispatch_events(true, true, true);
 
     Ok(())
@@ -172,7 +192,6 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
         } => {
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
-            // Outside of drawable region
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
                 // This is so that we can click the buttons outside the canvas region
                 // normally meant to be touched with a finger using our stylus
@@ -188,10 +207,7 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 return;
             }
 
-            let (col, mult) = match G_DRAW_MODE.load(Ordering::Relaxed) {
-                DrawMode::Draw(s) => (color::BLACK, s),
-                DrawMode::Erase(s) => (color::WHITE, s * 3),
-            };
+            let (col, mult) = (color::BLACK, DrawMode::default().get_size());
 
             {
                 let mut strokes = STROKES.lock().unwrap();
@@ -322,26 +338,17 @@ fn maybe_send_drawing() {
     strokes.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
-    // if let multitouch::MultitouchEvent::Press { finger }
-    // | multitouch::MultitouchEvent::Move { finger } = input
-    // {
-    //     let position = finger.pos;
-    //     if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
-    //         return;
-    //     }
-    // }
-}
+fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {}
 
 fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
-    let (btn, new_state) = match input {
+    let (btn, pressed) = match input {
         gpio::GPIOEvent::Press { button } => (button, true),
         gpio::GPIOEvent::Unpress { button } => (button, false),
         _ => return,
     };
 
     // Ignoring the unpressed event
-    if !new_state {
+    if !pressed {
         return;
     }
 
@@ -383,6 +390,7 @@ fn add_xuser<T>(req: &mut Request<T>, user: String) {
 async fn loop_recv(
     app: &mut ApplicationContext<'_>,
     client: &mut WhiteboardClient<Channel>,
+    // sub: nats::Subscription,
     args: Args,
 ) {
     let mut req = Request::new(RecvEventsReq {
@@ -394,98 +402,115 @@ async fn loop_recv(
     let mut stream = client.recv_events(req).await.unwrap().into_inner();
     info!("[loop_recv] receiving...");
 
-    while let Some(event) = stream.message().await.unwrap() {
-        debug!("[loop_recv] received event {:?}", event);
-
-        if let Some(drawing) = event.event_drawing {
-            let col = match drawing.color() {
-                Color::White => color::WHITE,
-                _ => color::BLACK,
-            };
-            let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
-            let len = xs.len();
-            debug!("[loop_recv] xs.len() = {:?}", len);
-            if len < 3 {
-                continue;
+    // for msg in sub.iter() {
+    loop {
+        let msg = stream.message().await.unwrap();
+        match msg {
+            Some(event) => {
+                debug!("[loop_recv] received event {:?}", event);
+                // let event: Event = Message::decode(&msg.data[..]).unwrap();
+                // debug!("[loop_recv] received {:?}: {:?}", msg.subject, event);
+                if let Some(drawing) = event.event_drawing {
+                    paint(app, drawing);
+                    delay_for(Duration::from_millis(2)).await;
+                    info!("[loop_recv] painted");
+                }
             }
-            for i in 0..len - 2 {
-                let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
-                    // start
-                    (
-                        cgmath::Point2 {
-                            x: xs[i + 0],
-                            y: ys[i + 0],
-                        },
-                        ps[i + 0],
-                        ws[i + 0],
-                    ),
-                    // ctrl
-                    (
-                        cgmath::Point2 {
-                            x: xs[i + 1],
-                            y: ys[i + 1],
-                        },
-                        ps[i + 1],
-                        ws[i + 1],
-                    ),
-                    // end
-                    (
-                        cgmath::Point2 {
-                            x: xs[i + 2],
-                            y: ys[i + 2],
-                        },
-                        ps[i + 2],
-                        ws[i + 2],
-                    ),
-                ];
-                let radii: Vec<f32> = points
-                    .iter()
-                    .map(|(_, pressure, tip)| (((*tip as f32) * (*pressure as f32)) / 2048.) / 2.)
-                    .collect();
-                // calculate control points
-                let start_point = points[2].0.midpoint(points[1].0);
-                let ctrl_point = points[1].0;
-                let end_point = points[1].0.midpoint(points[0].0);
-                // calculate diameters
-                let start_width = radii[2] + radii[1];
-                let ctrl_width = radii[1] * 2.;
-                let end_width = radii[1] + radii[0];
-
-                let framebuffer = app.get_framebuffer_ref();
-                let rect = framebuffer.draw_dynamic_bezier(
-                    (start_point, start_width),
-                    (ctrl_point, ctrl_width),
-                    (end_point, end_width),
-                    10,
-                    col,
-                );
-                framebuffer.partial_refresh(
-                    &rect,
-                    PartialRefreshMode::Async,
-                    waveform_mode::WAVEFORM_MODE_DU,
-                    display_temp::TEMP_USE_REMARKABLE_DRAW,
-                    dither_mode::EPDC_FLAG_EXP1,
-                    DRAWING_QUANT_BIT,
-                    false,
-                );
-                delay_for(Duration::from_millis(2)).await;
-            }
-            info!("[loop_recv] painted");
-        }
-        // tokio::task::yield_now().await;
+            e => error!("[loop_recv] !msg: {:?}", e),
+        };
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, args: &Args) {
+fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
+    let col = match drawing.color() {
+        Color::White => color::WHITE,
+        _ => color::BLACK,
+    };
+    let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
+    let len = xs.len();
+    debug!("[loop_recv] xs.len() = {:?}", len);
+    if len < 3 {
+        return;
+    }
+    for i in 0..len - 2 {
+        let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
+            // start
+            (
+                cgmath::Point2 {
+                    x: xs[i + 0],
+                    y: ys[i + 0],
+                },
+                ps[i + 0],
+                ws[i + 0],
+            ),
+            // ctrl
+            (
+                cgmath::Point2 {
+                    x: xs[i + 1],
+                    y: ys[i + 1],
+                },
+                ps[i + 1],
+                ws[i + 1],
+            ),
+            // end
+            (
+                cgmath::Point2 {
+                    x: xs[i + 2],
+                    y: ys[i + 2],
+                },
+                ps[i + 2],
+                ws[i + 2],
+            ),
+        ];
+        let radii: Vec<f32> = points
+            .iter()
+            .map(|(_, pressure, tip)| (((*tip as f32) * (*pressure as f32)) / 2048.) / 2.)
+            .collect();
+        // calculate control points
+        let start_point = points[2].0.midpoint(points[1].0);
+        let ctrl_point = points[1].0;
+        let end_point = points[1].0.midpoint(points[0].0);
+        // calculate diameters
+        let start_width = radii[2] + radii[1];
+        let ctrl_width = radii[1] * 2.;
+        let end_width = radii[1] + radii[0];
+
+        let framebuffer = app.get_framebuffer_ref();
+        let rect = framebuffer.draw_dynamic_bezier(
+            (start_point, start_width),
+            (ctrl_point, ctrl_width),
+            (end_point, end_width),
+            10,
+            col,
+        );
+        framebuffer.partial_refresh(
+            &rect,
+            PartialRefreshMode::Async,
+            waveform_mode::WAVEFORM_MODE_DU,
+            display_temp::TEMP_USE_REMARKABLE_DRAW,
+            dither_mode::EPDC_FLAG_EXP1,
+            DRAWING_QUANT_BIT,
+            false,
+        );
+    }
+}
+
+async fn send_drawing(
+    client: &mut WhiteboardClient<Channel>,
+    // nc: nats::Connection,
+    drawing: Drawing,
+    args: &Args,
+) {
+    let event = Event {
+        created_at: 0,
+        user_id: "".into(),
+        room_id: "".into(),
+        event_drawing: Some(drawing),
+        event_user_left_the_room: false,
+        event_user_joined_the_room: false,
+    };
     let mut req = Request::new(SendEventReq {
-        event: Some(Event {
-            created_at: 0,
-            user_id: "".into(),
-            room_id: "".into(),
-            event_drawing: Some(drawing),
-            event_user_left_the_room: false,
-            event_user_joined_the_room: false,
-        }),
+        event: Some(event),
         room_ids: vec![args.flag_room.to_owned()],
     });
     add_xuser(&mut req, args.flag_user.to_owned());
@@ -495,4 +520,21 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
         .await
         .map_err(|e| error!("!Send: {:?}", e));
     info!("REP = {:?}", rep);
+
+    // let subject = &[
+    //     // hc wb 1 <room ID> <user ID> <kind>
+    //     category(),
+    //     args.flag_room.clone(),
+    //     args.flag_user.clone(),
+    //     "drawing".to_string(),
+    // ]
+    // .join(".");
+
+    // let mut msg = Vec::new();
+    // if let Err(error) = event.encode(&mut msg) {
+    //     error!("!enc {:?}", error);
+    //     panic!(error);
+    // }
+
+    // nc.publish(subject, msg).unwrap();
 }

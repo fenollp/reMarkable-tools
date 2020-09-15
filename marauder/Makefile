@@ -52,7 +52,7 @@ docker-env:
 		--tag $(IMG) .
 
 whiteboard: DEVICE ?= root@10.11.99.1
-whiteboard: HOST ?= localhost
+whiteboard: HOST ?= fknwkdacd.com
 whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
 whiteboard: fmt docker-env
@@ -65,7 +65,7 @@ whiteboard: fmt docker-env
 		-v cargo-registry:/home/builder/.cargo/registry \
 		-w /home/builder/libremarkable \
 		$(IMG) \
-		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
+		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf #--locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	scp -pC $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=$(HOST) | tail -f'

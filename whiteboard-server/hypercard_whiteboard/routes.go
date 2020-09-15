@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ourCurrentMessagingVersion = "1" // Bump this when breaking RK backward compatibility
+	ourCurrentMessagingPrefix = "hc.wb.1" // Bump this when breaking RK backward compatibility
 
 	rkEvent = "evt"
 )
@@ -34,7 +34,7 @@ type rabbiter interface {
 func fromRK(rk string) interface{} {
 	parts := strings.Split(rk, ".")
 	n := len(parts)
-	if n == 0 || parts[0] != ourCurrentMessagingVersion {
+	if n == 0 || parts[0] != ourCurrentMessagingPrefix {
 		return errBadRK
 	}
 	n--
@@ -66,7 +66,7 @@ func encodeInt32BK(v int32, vv string) string {
 }
 func encodeBK(fields []string) string {
 	var b strings.Builder
-	b.WriteString(ourCurrentMessagingVersion)
+	b.WriteString(ourCurrentMessagingPrefix)
 	for _, field := range fields {
 		b.WriteString(".")
 		b.WriteString(field)

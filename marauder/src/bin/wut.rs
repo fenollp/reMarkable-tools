@@ -88,9 +88,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut req = Request::new(SendEventReq {
                 event: Some(Event {
-                    // created_at: 0,
-                    // user_id: "".into(),
-                    // room_id: "".into(),
+                    created_at: 0,
+                    user_id: "".into(),
+                    room_id: "".into(),
                     event_drawing: None,
                     event_user_left_the_room: false,
                     event_user_joined_the_room: true,

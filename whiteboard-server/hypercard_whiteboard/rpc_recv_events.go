@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	nats "github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -43,25 +44,15 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 	}.String()
 
 	log.Debug("listening for events", zap.String("bk", bk))
-	var c *rabbitClient
-	if c, err = srv.rmq.newSubClient(ctx); err != nil {
-		return
-	}
-	defer c.close(ctx)
-
-	var queue string
-	if queue, err = c.qDeclare(ctx, ""); err != nil {
-		return
-	}
-	if err = c.qBind(ctx, queue, bk); err != nil {
-		return
-	}
-	deliveries, cancel, err := c.qConsume(ctx, queue)
-	if err != nil {
+	var (
+		deliveries = make(chan *nats.Msg)
+		sub        *nats.Subscription
+	)
+	if sub, err = srv.nc.ChanSubscribe(bk, deliveries); err != nil {
 		log.Error("", zap.Error(err))
 		return
 	}
-	defer cancel()
+	defer sub.Unsubscribe()
 
 	// Join event
 	{
@@ -71,7 +62,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			UserId:                 ctxUID(ctx),
 			EventUserJoinedTheRoom: true,
 		}
-		if err = c.publish(ctx, event); err != nil {
+		if err = srv.nc.publish(ctx, event); err != nil {
 			return
 		}
 	}
@@ -84,7 +75,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			UserId:       "HyperCard--whiteboard-server",
 			EventDrawing: &eventDrawingHouse,
 		}
-		if err = c.publish(ctx, event); err != nil {
+		if err = srv.nc.publish(ctx, event); err != nil {
 			return
 		}
 	}()
@@ -97,7 +88,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			UserId:               ctxUID(ctx),
 			EventUserLeftTheRoom: true,
 		}
-		if err = c.publish(ctx, event); err != nil {
+		if err = srv.nc.publish(ctx, event); err != nil {
 			return
 		}
 	}()
@@ -113,11 +104,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			return
 
 		case d := <-deliveries:
-			if err = d.Ack(false); err != nil {
-				log.Error("while ack-ing", zap.Error(err))
-				return
-			}
-			rk := d.RoutingKey
+			rk := d.Subject
 
 			o, ok := fromRK(rk).(rkOfEvent)
 			if !ok {
@@ -133,7 +120,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			var event Event
 			{
 				start := time.Now()
-				if err = proto.Unmarshal(d.Body, &event); err != nil {
+				if err = proto.Unmarshal(d.Data, &event); err != nil {
 					log.Error("", zap.Error(err))
 					continue
 				}
