@@ -32,9 +32,12 @@ type rabbiter interface {
 }
 
 func fromRK(rk string) interface{} {
-	parts := strings.Split(rk, ".")
+	if !strings.HasPrefix(rk, ourCurrentMessagingPrefix) {
+		return errBadRK
+	}
+	parts := strings.Split(strings.TrimPrefix(rk, ourCurrentMessagingPrefix), ".")
 	n := len(parts)
-	if n == 0 || parts[0] != ourCurrentMessagingPrefix {
+	if n == 0 {
 		return errBadRK
 	}
 	n--
