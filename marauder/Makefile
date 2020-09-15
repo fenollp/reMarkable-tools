@@ -52,7 +52,7 @@ docker-env:
 		--tag $(IMG) .
 
 whiteboard: DEVICE ?= root@10.11.99.1
-whiteboard: HOST ?= fknwkdacd.com
+whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
 whiteboard: fmt docker-env

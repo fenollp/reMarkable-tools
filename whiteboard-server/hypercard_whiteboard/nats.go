@@ -21,7 +21,7 @@ func (srv *Server) setupNats(ctx context.Context, host, user, pass string) (err 
 	uri := fmt.Sprintf("nats://%s:%s@%s:4222", user, pass, host)
 	log.Info("connecting to NATS", zap.String("uri", uri))
 	var nc *nats.Conn
-	if nc, err = nats.Connect(host); err != nil {
+	if nc, err = nats.Connect(uri); err != nil {
 		log.Error("", zap.Error(err))
 		return
 	}

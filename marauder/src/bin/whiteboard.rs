@@ -53,7 +53,7 @@ Usage:
 
 Options:
   --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
-  --user=<USER>  User to connect as [default: Jane].
+  --user=<USER>  User to connect as [default: J4n3].
   --room=<ROOM>  Room to join [default: living-room].
   -h --help      Show this screen.
   --version      Show version.
