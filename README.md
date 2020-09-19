@@ -32,6 +32,30 @@ so routinely run
 journalctl --vacuum-size=2M
 ```
 
+## HyperCards
+
+Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/duplicated.
+* tools / modifiers are square cards snapping to the edges of the screen
+	* *henceforth mentioned as `[ToolX]` for tool X*
+	* using them / modifying them by a press held while using the pencil
+	* a `[?]` tool always hangs in a corner, pressing = shows description text (like crosswords)
+	* modification (reorganization / addition / removal) through drawing
+	* tools icons can be drawn too / loaded from a font / loaded from a builtin set of images
+* whiteboard card
+	* rectangle that can be moved by dragging on the edges
+	* zoom/rotation by dragging in the area (not the edges)
+		* MIGHT: zooming hard moves to another user's view?
+	* some bi-directional communication with a networked service
+		* user joins a room and shares their live drawings
+		* It is possible to combine a [Selection]-ed group of strokes and [Digitize] to ask service for translation
+* `[Digitize]`
+	* connects to a distant machine or achieves its AI inference on-tablet
+	* takes a few strokes in and outputs text+area / shape+area
+* `[Selection]`
+	* draw approximately on one or more strokes
+	* creates a group that can be used with other modifiers
+	* press another tool before unpressing this one to pass the group to the other tool
+
 ## marauder
 
 * [![Marauder's map](https://thumbs.gfycat.com/AcrobaticLastingBeardedcollie-mobile.jpg)](https://zippy.gfycat.com/AcrobaticLastingBeardedcollie.webm)

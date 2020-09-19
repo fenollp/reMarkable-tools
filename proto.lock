@@ -32,27 +32,27 @@
               },
               {
                 "id": 2,
-                "name": "user_id",
+                "name": "by_user_id",
                 "type": "string"
               },
               {
                 "id": 3,
-                "name": "room_id",
+                "name": "in_room_id",
                 "type": "string"
               },
               {
                 "id": 4,
-                "name": "event_drawing",
+                "name": "drawing",
                 "type": "Drawing"
               },
               {
                 "id": 5,
-                "name": "event_user_left_the_room",
+                "name": "user_left_the_room",
                 "type": "bool"
               },
               {
                 "id": 6,
-                "name": "event_user_joined_the_room",
+                "name": "user_joined_the_room",
                 "type": "bool"
               }
             ]

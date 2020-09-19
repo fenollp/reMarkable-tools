@@ -29,12 +29,13 @@ service Whiteboard {
 
 message Event {
   int64 created_at = 1; // Unset when publishing
-  string user_id = 2; // Unset when publishing
-  string room_id = 3; // Unset when publishing
-  // Only one of the event_* must ever be set at once
-  Drawing event_drawing = 4;
-  bool event_user_left_the_room = 5;
-  bool event_user_joined_the_room = 6;
+  string by_user_id = 2; // Unset when publishing
+  string in_room_id = 3; // Unset when publishing
+  oneof event {
+    Drawing drawing = 4;
+    bool user_left_the_room = 5;
+    bool user_joined_the_room = 6;
+  }
 }
 
 message Drawing {

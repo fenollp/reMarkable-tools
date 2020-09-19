@@ -57,10 +57,10 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 	// Join event
 	{
 		event := &Event{
-			CreatedAt:              time.Now().UnixNano(),
-			RoomId:                 req.GetRoomId(),
-			UserId:                 ctxUID(ctx),
-			EventUserJoinedTheRoom: true,
+			CreatedAt: time.Now().UnixNano(),
+			InRoomId:  req.GetRoomId(),
+			ByUserId:  ctxUID(ctx),
+			Event:     &Event_UserJoinedTheRoom{UserJoinedTheRoom: true},
 		}
 		if err = srv.nc.publish(ctx, event); err != nil {
 			return
@@ -70,10 +70,10 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 	go func() {
 		time.Sleep(5 * time.Second)
 		event := &Event{
-			CreatedAt:    time.Now().UnixNano(),
-			RoomId:       req.GetRoomId(),
-			UserId:       "HyperCard--whiteboard-server",
-			EventDrawing: &eventDrawingHouse,
+			CreatedAt: time.Now().UnixNano(),
+			InRoomId:  req.GetRoomId(),
+			ByUserId:  "HyperCard--whiteboard-server",
+			Event:     &Event_Drawing{Drawing: &eventDrawingHouse},
 		}
 		if err = srv.nc.publish(ctx, event); err != nil {
 			return
@@ -83,10 +83,10 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 	// Leave event
 	defer func() {
 		event := &Event{
-			CreatedAt:            time.Now().UnixNano(),
-			RoomId:               req.GetRoomId(),
-			UserId:               ctxUID(ctx),
-			EventUserLeftTheRoom: true,
+			CreatedAt: time.Now().UnixNano(),
+			InRoomId:  req.GetRoomId(),
+			ByUserId:  ctxUID(ctx),
+			Event:     &Event_UserLeftTheRoom{UserLeftTheRoom: true},
 		}
 		if err = srv.nc.publish(ctx, event); err != nil {
 			return

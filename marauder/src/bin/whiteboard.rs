@@ -1,12 +1,5 @@
-#![feature(nll)]
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
 use docopt::Docopt;
+use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -21,8 +14,8 @@ use libremarkable::input::InputDevice;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
+use log::{debug, error, info};
 use marauder::modes::draw::DrawMode;
-// use prost::Message;
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::process::Command;
@@ -34,8 +27,9 @@ use tokio::time::delay_for;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tonic::Request;
-use whiteboard::drawing::Color;
+use uuid::Uuid;
 use whiteboard::whiteboard_client::WhiteboardClient;
+use whiteboard::{drawing, event};
 use whiteboard::{Drawing, Event};
 use whiteboard::{RecvEventsReq, SendEventReq};
 
@@ -47,13 +41,12 @@ const USAGE: &str = "
 reMarkable whiteboard HyperCard.
 
 Usage:
-  whiteboard [--host=<HOST>] [--user=USER] [--room=<ROOM>]
+  whiteboard [--room=<ROOM>] [--host=<HOST>]
   whiteboard (-h | --help)
   whiteboard --version
 
 Options:
   --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
-  --user=<USER>  User to connect as [default: J4n3].
   --room=<ROOM>  Room to join [default: living-room].
   -h --help      Show this screen.
   --version      Show version.
@@ -62,8 +55,13 @@ Options:
 #[derive(Debug, Deserialize, Clone)]
 struct Args {
     flag_host: String,
-    flag_user: String,
     flag_room: String,
+}
+
+#[derive(Debug, Clone)]
+struct Ctx {
+    args: Args,
+    user_id: String,
 }
 
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
@@ -82,10 +80,6 @@ lazy_static! {
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
 
-// fn category() -> String {
-//     "hc.wb.1".to_string()
-// }
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -93,7 +87,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
-    debug!("{:?}", args);
+    debug!("args = {:?}", args);
+
+    let user_id = Uuid::new_v4().to_hyphenated().to_string();
+    debug!("user_id = {:?}", user_id);
+    // TODO: save settings under ~/.hypercards/whiteboard/<user_id>/...
+    // https://github.com/whitequark/rust-xdg
+    // ...but does $HOME survives xochitl updates?
+
+    // TODO: check for updates when asked:
+    // reqwest JSON API equivalent of https://github.com/fenollp/reMarkable-tools/releases
+    // and select the highest semver these
+    // DL + decompress + checksum + chmod + move + execve
+    // unless version is current
 
     let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
     app.clear(true);
@@ -116,29 +122,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let host = args.clone().flag_host;
     info!("[main] connecting to {:?}...", host);
-    let channel = Endpoint::from_shared(host).unwrap().connect().await?;
-    let mut client1 = WhiteboardClient::new(channel.clone());
-    let mut client2 = WhiteboardClient::new(channel);
-    // let nc = nats::Options::with_user_pass(
-    //     "reMarkable-HyperCard",
-    //     "iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj",
-    // )
-    // .with_name("reMarkable Whiteboard HyperCard")
-    // .connect(&host)
-    // .unwrap();
+    let ch = Endpoint::from_shared(host).unwrap().connect().await?;
 
-    // let sub = nc
-    //     .subscribe(
-    //         &[
-    //             // hc wb 1 <room ID> <user ID> <kind>
-    //             category(),
-    //             args.clone().flag_room,
-    //             ">".to_string(),
-    //         ]
-    //         .join("."),
-    //     )
-    //     .unwrap();
-    let args2 = args.clone();
+    let ch2 = ch.clone();
+    let ctx2 = Ctx {
+        args: args.clone(),
+        user_id: user_id.clone(),
+    };
     let appref = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
     tokio::task::spawn_blocking(move || {
@@ -146,8 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rt_handle = tokio::runtime::Handle::current();
         rt_handle.block_on(async move {
             info!("[loop_recv] spawn-ed");
-            loop_recv(appref, &mut client1, args2).await;
-            // loop_recv(appref, sub).await;
+            loop_recv(appref, ch2, ctx2).await;
             info!("[loop_recv] terminated");
         });
     });
@@ -165,12 +154,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *wtx = Some(tx.to_owned());
                 info!("[TXer] unlocked");
             }
+            let ctx = Ctx { args, user_id };
+            let mut client = WhiteboardClient::new(ch);
             loop {
                 let rcvd = rx.recv();
                 debug!("[TXer] FWDing...");
                 match rcvd {
-                    Ok(drawing) => send_drawing(&mut client2, drawing, &args).await,
-                    // Ok(drawing) => send_drawing(nc.to_owned(), drawing, &args).await,
+                    Ok(drawing) => send_drawing(&mut client, drawing, &ctx).await,
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
                 }
             }
@@ -315,8 +305,8 @@ fn maybe_send_drawing() {
     }
 
     let col = match strokes[0].0 {
-        color::WHITE => Color::White,
-        _ => Color::Black,
+        color::WHITE => drawing::Color::White,
+        _ => drawing::Color::Black,
     };
 
     debug!("locking TX");
@@ -387,52 +377,59 @@ fn add_xuser<T>(req: &mut Request<T>, user: String) {
     assert!(md.insert("x-user", user_id).is_none());
 }
 
-async fn loop_recv(
-    app: &mut ApplicationContext<'_>,
-    client: &mut WhiteboardClient<Channel>,
-    // sub: nats::Subscription,
-    args: Args,
-) {
+async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
     let mut req = Request::new(RecvEventsReq {
-        room_id: args.flag_room,
+        room_id: ctx.args.flag_room,
     });
-    add_xuser(&mut req, args.flag_user);
+    add_xuser(&mut req, ctx.user_id);
 
     info!("[loop_recv] creating stream");
+    let mut client = WhiteboardClient::new(ch);
     let mut stream = client.recv_events(req).await.unwrap().into_inner();
     info!("[loop_recv] receiving...");
 
-    // for msg in sub.iter() {
     loop {
         let msg = stream.message().await.unwrap();
         match msg {
-            Some(event) => {
-                debug!("[loop_recv] received event {:?}", event);
-                // let event: Event = Message::decode(&msg.data[..]).unwrap();
-                // debug!("[loop_recv] received {:?}: {:?}", msg.subject, event);
-                if let Some(drawing) = event.event_drawing {
-                    paint(app, drawing);
-                    delay_for(Duration::from_millis(2)).await;
+            None => error!("[loop_recv] empty message in gRPC stream"),
+            Some(event) => match event.event {
+                None => error!("[loop_recv] empty event in message"),
+                Some(event::Event::Drawing(drawing)) => {
+                    let len = drawing.xs.len();
+                    if len < 3 {
+                        continue;
+                    }
+                    debug!("[loop_recv] drawing {:?} points", len - 2);
+                    paint(app, drawing).await;
                     info!("[loop_recv] painted");
                 }
-            }
-            e => error!("[loop_recv] !msg: {:?}", e),
+                Some(event::Event::UserJoinedTheRoom(_)) => {
+                    info!(
+                        "[loop_recv] user {:?} joined room {:?}",
+                        event.by_user_id, event.in_room_id
+                    );
+                }
+                Some(event::Event::UserLeftTheRoom(_)) => {
+                    info!(
+                        "[loop_recv] user {:?} left room {:?}",
+                        event.by_user_id, event.in_room_id
+                    );
+                }
+            },
         };
     }
 }
 
-fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
+async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     let col = match drawing.color() {
-        Color::White => color::WHITE,
+        drawing::Color::White => color::WHITE,
         _ => color::BLACK,
     };
     let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
-    let len = xs.len();
-    debug!("[loop_recv] xs.len() = {:?}", len);
-    if len < 3 {
-        return;
-    }
-    for i in 0..len - 2 {
+    for i in 0..(xs.len() - 2) {
+        if i != 0 {
+            delay_for(Duration::from_millis(2)).await;
+        }
         let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
             // start
             (
@@ -495,46 +492,22 @@ fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     }
 }
 
-async fn send_drawing(
-    client: &mut WhiteboardClient<Channel>,
-    // nc: nats::Connection,
-    drawing: Drawing,
-    args: &Args,
-) {
+async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, ctx: &Ctx) {
     let event = Event {
         created_at: 0,
-        user_id: "".into(),
-        room_id: "".into(),
-        event_drawing: Some(drawing),
-        event_user_left_the_room: false,
-        event_user_joined_the_room: false,
+        by_user_id: "".into(),
+        in_room_id: "".into(),
+        event: Some(event::Event::Drawing(drawing)),
     };
     let mut req = Request::new(SendEventReq {
         event: Some(event),
-        room_ids: vec![args.flag_room.to_owned()],
+        room_ids: vec![ctx.args.flag_room.to_owned()],
     });
-    add_xuser(&mut req, args.flag_user.to_owned());
+    add_xuser(&mut req, ctx.user_id.to_owned());
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)
         .await
         .map_err(|e| error!("!Send: {:?}", e));
     info!("REP = {:?}", rep);
-
-    // let subject = &[
-    //     // hc wb 1 <room ID> <user ID> <kind>
-    //     category(),
-    //     args.flag_room.clone(),
-    //     args.flag_user.clone(),
-    //     "drawing".to_string(),
-    // ]
-    // .join(".");
-
-    // let mut msg = Vec::new();
-    // if let Err(error) = event.encode(&mut msg) {
-    //     error!("!enc {:?}", error);
-    //     panic!(error);
-    // }
-
-    // nc.publish(subject, msg).unwrap();
 }

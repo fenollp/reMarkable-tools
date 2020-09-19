@@ -57,7 +57,7 @@ whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
 whiteboard: fmt docker-env
 # 	cross build --release --bin $(EXE) --target=$(TARGET) --frozen --locked --offline
-	docker volume inspect cargo-registry >/dev/null || docker volume create cargo-registry
+	docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
 	docker run \
 		-t --rm \
 		--user builder \

@@ -19,50 +19,19 @@ func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) (er
 		log.Error("", zap.Error(err))
 		return
 	}
-	if userID := event.GetUserId(); userID != "" {
+	if userID := event.GetByUserId(); userID != "" {
 		err = errBadRequest
 		log.Error("", zap.Error(err))
 		return
 	}
-	if roomID := event.GetRoomId(); roomID != "" {
+	if roomID := event.GetInRoomId(); roomID != "" {
 		err = errBadRequest
 		log.Error("", zap.Error(err))
 		return
 	}
-	if !xorN(
-		// MUST allow only one FIXME: use proto oneof
-		event.GetEventDrawing() != nil,
-		event.GetEventUserLeftTheRoom() != false,
-		event.GetEventUserJoinedTheRoom() != false,
-	) {
-		err = errBadRequest
-		log.Error("", zap.Error(err))
-		return
-	}
-	if false ||
-		// Disallow status events
-		event.GetEventUserLeftTheRoom() ||
-		event.GetEventUserJoinedTheRoom() ||
-		false {
-		err = errBadRequest
-		log.Error("", zap.Error(err))
-		return
-	}
-
-	roomIDs := req.GetRoomIds()
-	if hasDuplicates(roomIDs) {
-		err = errBadRequest
-		log.Error("", zap.Error(err))
-		return
-	}
-	for _, roomID := range roomIDs {
-		if err = ntui(roomID); err != nil {
-			log.Error("", zap.Error(err))
-			return
-		}
-	}
-
-	if drawing := event.GetEventDrawing(); drawing != nil {
+	switch event.GetEvent().(type) {
+	case *Event_Drawing:
+		drawing := event.GetDrawing()
 		if drawing.GetColor() == Drawing_invisible {
 			err = errBadRequest
 			log.Error("", zap.Error(err))
@@ -73,6 +42,28 @@ func (srv *Server) validateSendEvent(ctx context.Context, req *SendEventReq) (er
 			len(drawing.GetXs()) != len(drawing.GetPressures()) ||
 			len(drawing.GetXs()) != len(drawing.GetWidths()) {
 			err = errBadRequest
+			log.Error("", zap.Error(err))
+			return
+		}
+
+	// Disallow status events
+	case *Event_UserJoinedTheRoom, *Event_UserLeftTheRoom:
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
+
+	default:
+		log.Debug("unhandled event", zap.Any("event", event.GetEvent()))
+	}
+
+	roomIDs := req.GetRoomIds()
+	if hasDuplicates(roomIDs) {
+		err = errBadRequest
+		log.Error("", zap.Error(err))
+		return
+	}
+	for _, roomID := range roomIDs {
+		if err = ntui(roomID); err != nil {
 			log.Error("", zap.Error(err))
 			return
 		}
@@ -96,15 +87,13 @@ func (srv *Server) SendEvent(ctx context.Context, req *SendEventReq) (rep *SendE
 		return
 	}
 
+	event := &Event{
+		CreatedAt: time.Now().UnixNano(),
+		ByUserId:  ctxUID(ctx),
+		Event:     req.GetEvent().GetEvent(),
+	}
 	for _, roomID := range req.GetRoomIds() {
-		event := &Event{
-			CreatedAt:              time.Now().UnixNano(),
-			UserId:                 ctxUID(ctx),
-			RoomId:                 roomID,
-			EventDrawing:           req.GetEvent().GetEventDrawing(),
-			EventUserLeftTheRoom:   req.GetEvent().GetEventUserLeftTheRoom(),
-			EventUserJoinedTheRoom: req.GetEvent().GetEventUserJoinedTheRoom(),
-		}
+		event.InRoomId = roomID
 		if err = srv.nc.publish(ctx, event); err != nil {
 			return
 		}

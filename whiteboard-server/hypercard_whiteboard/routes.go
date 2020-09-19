@@ -126,19 +126,19 @@ const (
 
 func (x *Event) rk() string {
 	var kind string
-	switch {
-	case x.GetEventDrawing() != nil:
+	switch x.GetEvent().(type) {
+	case *Event_Drawing:
 		kind = evtKindDrawing
-	case x.GetEventUserLeftTheRoom() != false:
+	case *Event_UserLeftTheRoom:
 		kind = evtKindUserLeftTheRoom
-	case x.GetEventUserJoinedTheRoom() != false:
+	case *Event_UserJoinedTheRoom:
 		kind = evtKindUserJoinedTheRoom
 	default:
 		panic(fmt.Sprintf("unhandled event kind for %+v", x))
 	}
 	return rkOfEvent{
-		roomID: x.RoomId,
-		userID: x.UserId,
+		roomID: x.InRoomId,
+		userID: x.ByUserId,
 		kind:   kind,
 	}.String()
 }
