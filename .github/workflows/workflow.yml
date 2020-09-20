@@ -12,10 +12,12 @@ jobs:
         target: armv7-unknown-linux-musleabihf
         override: true
     - run: make ujipenchars2.txt
+      working-directory: marauder
     - run: make test
+      working-directory: marauder
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         use-cross: true
         command: build
         working-directory: marauder
-        args: --release --target armv7-unknown-linux-musleabihf
+        args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf

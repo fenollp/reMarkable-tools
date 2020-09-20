@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package hypercard.whiteboard;
+// option go_package = "whiteboard";
+
+// import "google/protobuf/empty.proto";
+// import "google/protobuf/wrappers.proto";
+
+// Whiteboard is a shared drawing canvas HyperCard.
+// Note: all calls MUST be done with a "user-id" header.
+service Whiteboard {
+
+  // RecvEvents listens to new events from others for a given room.
+  // Events are sent using the SendEvent call.
+  // A user never receives their own events.
+  // When stream is closed, other users of the room should receive a disconnection event.
+  rpc RecvEvents(RecvEventsReq) returns (stream Event) {}
+
+  // SendEvent publishes a user's event, which then gets routed to zero or more rooms.
+  rpc SendEvent(SendEventReq) returns (SendEventRep) {}
+
+  // ListRooms returns a paginated list of rooms.
+  rpc ListRooms(ListRoomsReq) returns (ListRoomsRep) {}
+
+  // ListRoomMembers returns a paginated list of room members.
+  rpc ListRoomMembers(ListRoomMembersReq) returns (ListRoomMembersRep) {}
+
+}
+
+message Event {
+  int64 created_at = 1; // Unset when publishing
+  string by_user_id = 2; // Unset when publishing
+  string in_room_id = 3; // Unset when publishing
+  oneof event {
+    Drawing drawing = 4;
+    bool user_left_the_room = 5;
+    bool user_joined_the_room = 6;
+  }
+}
+
+message Drawing {
+  repeated float xs = 1;
+  repeated float ys = 2;
+  repeated int32 pressures = 3;
+  repeated uint32 widths = 4;
+  enum Color {
+    invisible = 0;
+    BLACK = 1;
+    WHITE = 2;
+  }
+  Color color = 5;
+}
+
+message RecvEventsReq {
+  string room_id = 1; // Room to receive events from.
+}
+
+message SendEventReq {
+  Event event = 1;
+  repeated string room_ids = 2; // Rooms to send event to.
+}
+message SendEventRep {
+}
+
+message ListRoomsReq {
+  // TODO: cursor with direction+offset+limit
+}
+message ListRoomsRep {
+  repeated Event events = 1;
+  // TODO: cursor
+}
+
+message RoomMember {
+}
+message ListRoomMembersReq {
+  string room_id = 1;
+  // TODO: cursor with direction+offset+limit
+}
+message ListRoomMembersRep {
+  repeated RoomMember members = 1;
+  // TODO: cursor
+}
