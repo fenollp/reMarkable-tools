@@ -65,9 +65,9 @@ struct Ctx {
 }
 
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-    top: 720,
+    top: 45,
     left: 0,
-    height: 1080 + 50, //1850? 1900? !1872
+    height: 45 + 90 + 180 + 360 + 1080 + 50, //1850? 1900? !1872
     width: 1404,
 };
 

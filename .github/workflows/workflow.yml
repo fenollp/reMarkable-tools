@@ -11,6 +11,7 @@ jobs:
         toolchain: nightly # TODO: stable once const-fn is in
         target: armv7-unknown-linux-musleabihf
         override: true
+    - run: rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
     - run: make ujipenchars2.txt
       working-directory: marauder
     - run: make test
@@ -21,3 +22,15 @@ jobs:
         command: build
         working-directory: marauder
         args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
+    - run: |
+        docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
+        docker run \
+          -t --rm \
+          --user builder \
+          -v "$PWD":/home/builder/libremarkable:rw \
+          -v cargo-registry:/home/builder/.cargo/registry \
+          -w /home/builder/libremarkable \
+          fenollp/rust-build-remarkable \
+          cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
+        ls -lha ./target/*/release/*
+        ls -lha ./target/armv7-unknown-linux-gnueabihf/release/whiteboard

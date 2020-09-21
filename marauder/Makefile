@@ -61,7 +61,7 @@ whiteboard: fmt docker-env
 	docker run \
 		-t --rm \
 		--user builder \
-		-v $(shell pwd):/home/builder/libremarkable:rw \
+		-v "$$PWD":/home/builder/libremarkable:rw \
 		-v cargo-registry:/home/builder/.cargo/registry \
 		-w /home/builder/libremarkable \
 		$(IMG) \

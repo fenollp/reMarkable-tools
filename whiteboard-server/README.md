@@ -1,6 +1,6 @@
 # Whiteboard hypercard
 
-https://www.reddit.com/r/RemarkableTablet/comments/ioa37o/realtime_collaboration_drawing_or_whiteboarding/
+https://www.reddit.com/r/RemarkableTablet/comments/iwelzo/releasing_my_shared_whiteboard_app/
 
 Real-time collaboration, drawing or whiteboarding
 
