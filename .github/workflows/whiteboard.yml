@@ -1,0 +1,23 @@
+on: [push]
+name: Build Whiteboard
+jobs:
+  whiteboard_hypercard:
+    name: for reMarkable
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
+    - working-directory: marauder
+      run: |
+        docker run \
+          -t --rm \
+          --user builder \
+          -v "$PWD":/home/builder/libremarkable:rw \
+          -v cargo-registry:/home/builder/.cargo/registry \
+          -w /home/builder/libremarkable \
+          fenollp/rust-build-remarkable \
+          cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
+    - working-directory: marauder
+      run: ls -lha ./target/*/release/*
+    - working-directory: marauder
+      run: ls -lha ./target/armv7-unknown-linux-gnueabihf/release/whiteboard

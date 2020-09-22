@@ -16,19 +16,6 @@ jobs:
       working-directory: marauder
     - run: make test
       working-directory: marauder
-    - working-directory: marauder
-      run: |
-        docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
-        docker run \
-          -t --rm \
-          --user builder \
-          -v "$PWD":/home/builder/libremarkable:rw \
-          -v cargo-registry:/home/builder/.cargo/registry \
-          -w /home/builder/libremarkable \
-          fenollp/rust-build-remarkable \
-          cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
-        ls -lha ./target/*/release/*
-        ls -lha ./target/armv7-unknown-linux-gnueabihf/release/whiteboard
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         use-cross: true

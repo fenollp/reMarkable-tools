@@ -55,14 +55,15 @@ whiteboard: DEVICE ?= root@10.11.99.1
 whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
+whiteboard: VOLUME ?= cargoregistry
 whiteboard: fmt docker-env
-# 	cross build --release --bin $(EXE) --target=$(TARGET) --frozen --locked --offline
-	docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
+	docker volume inspect $(VOLUME) >/dev/null 2>&1 || docker volume create $(VOLUME)
+	# TODO: https://github.com/toltec-dev/toolchain/issues/2
 	docker run \
-		-t --rm \
+		-it --rm \
 		--user builder \
 		-v "$$PWD":/home/builder/libremarkable:rw \
-		-v cargo-registry:/home/builder/.cargo/registry \
+		-v $(VOLUME):/home/builder/.cargo/registry \
 		-w /home/builder/libremarkable \
 		$(IMG) \
 		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf #--locked #--frozen #--offline
