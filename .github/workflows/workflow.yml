@@ -16,13 +16,8 @@ jobs:
       working-directory: marauder
     - run: make test
       working-directory: marauder
-    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
-      with:
-        use-cross: true
-        command: build
-        working-directory: marauder
-        args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
-    - run: |
+    - working-directory: marauder
+      run: |
         docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
         docker run \
           -t --rm \
@@ -34,3 +29,10 @@ jobs:
           cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
         ls -lha ./target/*/release/*
         ls -lha ./target/armv7-unknown-linux-gnueabihf/release/whiteboard
+    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+      with:
+        use-cross: true
+        command: build
+        working-directory: marauder
+        args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
+      continue-on-error: true
