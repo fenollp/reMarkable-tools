@@ -26,19 +26,31 @@ jobs:
       continue-on-error: true
 
   whiteboard_hypercard:
-    name: Whiteboard HyperCard for reMarkable
-    runs-on: ubuntu-latest
+    name: Whiteboard HyperCard
+    # runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
     steps:
     - uses: actions/checkout@v2
-    - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
-    - run: docker pull fenollp/rust-build-remarkable
-    - working-directory: marauder
-      run: |
-        docker run --rm --user $(id -u):$(id -g) \
-          -v "$PWD":/home/builder/libremarkable:rw \
-          -v cargo-registry:/home/builder/.cargo/registry \
-          -w /home/builder/libremarkable \
-          fenollp/rust-build-remarkable \
-          cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        target: armv7-unknown-linux-gnueabihf
+        override: true
+    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+      with:
+        use-cross: true
+        command: build
+        working-directory: marauder
+        args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
+    # - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
+    # - run: docker pull fenollp/rust-build-remarkable
+    # - working-directory: marauder
+    #   run: |
+    #     docker run --rm --user $(id -u):$(id -g) \
+    #       -v "$PWD":/home/builder/libremarkable:rw \
+    #       -v cargo-registry:/home/builder/.cargo/registry \
+    #       -w /home/builder/libremarkable \
+    #       fenollp/rust-build-remarkable \
+    #       cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
     - run: ls -lha ./marauder/target/*/release/*
     - run: ls -lha ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard

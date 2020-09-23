@@ -55,16 +55,17 @@ whiteboard: DEVICE ?= root@10.11.99.1
 whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: EXE = whiteboard
 whiteboard: BIN = ./target/armv7-unknown-linux-gnueabihf/release/$(EXE)
-whiteboard: VOLUME ?= cargoregistry
-whiteboard: fmt docker-env
-	docker volume inspect $(VOLUME) >/dev/null 2>&1 || docker volume create $(VOLUME)
-	# TODO: https://github.com/toltec-dev/toolchain/issues/2
-	$(RUN) -it \
-		-v "$$PWD":/home/builder/libremarkable:rw \
-		-v $(VOLUME):/home/builder/.cargo/registry \
-		-w /home/builder/libremarkable \
-		$(IMG) \
-		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf #--locked #--frozen #--offline
+# whiteboard: VOLUME ?= cargoregistry
+whiteboard: fmt #docker-env
+	cross build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf #--locked #--frozen #--offline
+# 	docker volume inspect $(VOLUME) >/dev/null 2>&1 || docker volume create $(VOLUME)
+# 	# TODO: https://github.com/toltec-dev/toolchain/issues/2
+# 	$(RUN) -it \
+# 		-v "$$PWD":/home/builder/libremarkable:rw \
+# 		-v $(VOLUME):/home/builder/.cargo/registry \
+# 		-w /home/builder/libremarkable \
+# 		$(IMG) \
+# 		cargo build --release --bin $(EXE) --target=armv7-unknown-linux-gnueabihf #--locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	scp -pC $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=$(HOST) | tail -f'

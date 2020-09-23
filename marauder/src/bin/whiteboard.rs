@@ -14,7 +14,7 @@ use libremarkable::input::InputDevice;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use marauder::drawings;
 use marauder::modes::draw::DrawMode;
 use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
@@ -435,7 +435,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     repaint_people_counter(app, c, c - 1).await;
                 }
                 // Streamer MAY send never revisions of proto messages
-                Some(other) => warning!("[loop_recv] unhandled msg {:?}",other),
+                Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
             },
         };
     }
