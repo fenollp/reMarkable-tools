@@ -434,6 +434,8 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     let c = PEOPLE_COUNT.fetch_sub(1, Ordering::Relaxed);
                     repaint_people_counter(app, c, c - 1).await;
                 }
+                // Streamer MAY send never revisions of proto messages
+                Some(other) => warning!("[loop_recv] unhandled msg {:?}",other),
             },
         };
     }

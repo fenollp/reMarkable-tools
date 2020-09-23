@@ -1,6 +1,7 @@
 on: [push]
 name: Build for reMarkable
 jobs:
+
   build_for_remarkable:
     name: with musl
     runs-on: ubuntu-latest
@@ -23,3 +24,21 @@ jobs:
         working-directory: marauder
         args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
       continue-on-error: true
+
+  whiteboard_hypercard:
+    name: Whiteboard HyperCard for reMarkable
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
+    - run: docker pull fenollp/rust-build-remarkable
+    - working-directory: marauder
+      run: |
+        docker run --rm --user $(id -u):$(id -g) \
+          -v "$PWD":/home/builder/libremarkable:rw \
+          -v cargo-registry:/home/builder/.cargo/registry \
+          -w /home/builder/libremarkable \
+          fenollp/rust-build-remarkable \
+          cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
+    - run: ls -lha ./marauder/target/*/release/*
+    - run: ls -lha ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
