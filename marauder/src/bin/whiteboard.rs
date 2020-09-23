@@ -15,12 +15,18 @@ use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use log::{debug, error, info};
+use marauder::drawings;
 use marauder::modes::draw::DrawMode;
+use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
+use marauder::proto::whiteboard::{drawing, event};
+use marauder::proto::whiteboard::{Drawing, Event};
+use marauder::proto::whiteboard::{RecvEventsReq, SendEventReq};
 use serde::Deserialize;
 use std::collections::VecDeque;
+use std::convert::TryInto;
 use std::process::Command;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::time::delay_for;
@@ -28,14 +34,6 @@ use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tonic::Request;
 use uuid::Uuid;
-use whiteboard::whiteboard_client::WhiteboardClient;
-use whiteboard::{drawing, event};
-use whiteboard::{Drawing, Event};
-use whiteboard::{RecvEventsReq, SendEventReq};
-
-pub mod whiteboard {
-    tonic::include_proto!("hypercard.whiteboard");
-}
 
 const USAGE: &str = "
 reMarkable whiteboard HyperCard.
@@ -65,13 +63,14 @@ struct Ctx {
 }
 
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-    top: 2,
+    top: 2 + 70,
     left: 0,
     height: 1900,
     width: 1404,
 };
 
 lazy_static! {
+    static ref PEOPLE_COUNT: AtomicU32 = AtomicU32::new(0);
     static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
@@ -79,6 +78,9 @@ lazy_static! {
     static ref STROKES: Mutex<Vec<(color, u32, f32, f32, i32)>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
+
+const DRAWING_PACE: Duration = Duration::from_millis(2);
+const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -112,13 +114,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             inner: UIElement::Region {
                 size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
                 border_px: 2,
-                border_color: color::BLACK,
+                border_color: color::WHITE,
             },
             ..Default::default()
         },
     );
 
     app.draw_elements();
+
+    let appref0 = app.upgrade_ref();
+    tokio::spawn(async move {
+        paint_mouldings(appref0).await;
+    });
 
     let host = args.clone().flag_host;
     info!("[main] connecting to {:?}...", host);
@@ -356,6 +363,15 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
         gpio::PhysicalButton::MIDDLE | gpio::PhysicalButton::LEFT => {
             app.clear(btn == gpio::PhysicalButton::MIDDLE);
             app.draw_elements();
+
+            let appref = app.upgrade_ref();
+            // TODO: make libremarkable async
+            tokio::task::spawn_blocking(move || {
+                let rt_handle = tokio::runtime::Handle::current();
+                rt_handle.block_on(async move {
+                    paint_mouldings(appref).await;
+                });
+            });
         }
         gpio::PhysicalButton::POWER => {
             Command::new("systemctl")
@@ -403,17 +419,20 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     paint(app, drawing).await;
                     info!("[loop_recv] painted");
                 }
+                Some(event::Event::UsersInTheRoom(c)) => {
+                    let old = PEOPLE_COUNT.swap(c, Ordering::Relaxed);
+                    repaint_people_counter(app, old, c).await;
+                    info!("[loop_recv] room {:?} has {:?} users", event.in_room_id, c);
+                }
                 Some(event::Event::UserJoinedTheRoom(_)) => {
-                    info!(
-                        "[loop_recv] user {:?} joined room {:?}",
-                        event.by_user_id, event.in_room_id
-                    );
+                    info!("[loop_recv] user {:?} joined room", event.by_user_id);
+                    let c = PEOPLE_COUNT.fetch_add(1, Ordering::Relaxed);
+                    repaint_people_counter(app, c, c + 1).await;
                 }
                 Some(event::Event::UserLeftTheRoom(_)) => {
-                    info!(
-                        "[loop_recv] user {:?} left room {:?}",
-                        event.by_user_id, event.in_room_id
-                    );
+                    info!("[loop_recv] user {:?} left room", event.by_user_id);
+                    let c = PEOPLE_COUNT.fetch_sub(1, Ordering::Relaxed);
+                    repaint_people_counter(app, c, c - 1).await;
                 }
             },
         };
@@ -428,7 +447,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
     for i in 0..(xs.len() - 2) {
         if i != 0 {
-            delay_for(Duration::from_millis(2)).await;
+            delay_for(DRAWING_PACE).await;
         }
         let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
             // start
@@ -510,4 +529,89 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
         .await
         .map_err(|e| error!("!Send: {:?}", e));
     info!("REP = {:?}", rep);
+}
+
+fn drawing_for_people_counter(c: u32, color: drawing::Color) -> Vec<Drawing> {
+    match c {
+        0 => drawings::top_right_0::f(color),
+        1 => drawings::top_right_1::f(color),
+        2 => drawings::top_right_2::f(color),
+        3 => drawings::top_right_3::f(color),
+        4 => drawings::top_right_4::f(color),
+        5 => drawings::top_right_5::f(color),
+        6 => drawings::top_right_6::f(color),
+        7 => drawings::top_right_7::f(color),
+        8 => drawings::top_right_8::f(color),
+        9 => drawings::top_right_9::f(color),
+        _ => {
+            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", c);
+            drawings::top_right_9::f(color)
+        }
+    }
+}
+
+async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
+    let mut i = 0;
+    let len = xs.len();
+    for x in xs {
+        if i != 0 && i != len {
+            delay_for(INTER_DRAWING_PACE).await;
+        }
+        paint(app, x).await;
+        i += 1;
+    }
+}
+
+async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32) {
+    paint_vec(app, drawing_for_people_counter(o, drawing::Color::White)).await;
+    paint_vec(app, drawing_for_people_counter(n, drawing::Color::Black)).await;
+}
+
+async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
+    let c = drawing::Color::Black;
+    let appref0 = app.upgrade_ref();
+    debug!("[paint_mouldings] drawing UI...");
+    tokio::spawn(async move {
+        let appref1 = appref0.upgrade_ref();
+        tokio::spawn(async move {
+            paint(appref1, top_bar(c)).await;
+        });
+        delay_for(INTER_DRAWING_PACE).await;
+        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
+        // TODO: tools
+        // let appref2 = appref0.upgrade_ref();
+        // tokio::spawn(async move {
+        //     paint_vec(appref2, drawings::top_left_help::f(c)).await;
+        // });
+        // let appref3 = appref0.upgrade_ref();
+        // tokio::spawn(async move {
+        //     paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
+        // });
+        // let appref4 = appref0.upgrade_ref();
+        // tokio::spawn(async move {
+        //     paint_vec(appref4, drawings::top_left_x3::f(c)).await;
+        // });
+        let count = PEOPLE_COUNT.load(Ordering::Relaxed);
+        let appref5 = appref0.upgrade_ref();
+        tokio::spawn(async move {
+            paint_vec(appref5, drawing_for_people_counter(count, c)).await;
+        });
+    });
+    debug!("[paint_mouldings] drawing UI... Done.");
+}
+
+fn top_bar(c: drawing::Color) -> Drawing {
+    let (start, end): (usize, usize) = (1, CANVAS_REGION.width.try_into().unwrap());
+    let count = (end - start + 1) / 2;
+    Drawing {
+        xs: (start..end)
+            .into_iter()
+            .step_by(2)
+            .map(|x| x as f32)
+            .collect(),
+        ys: vec![70.444; count],
+        pressures: vec![3992; count],
+        widths: vec![2; count],
+        color: c as i32,
+    }
 }

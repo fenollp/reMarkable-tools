@@ -35,6 +35,7 @@ message Event {
     Drawing drawing = 4;
     bool user_left_the_room = 5;
     bool user_joined_the_room = 6;
+    uint32 users_in_the_room = 7;
   }
 }
 

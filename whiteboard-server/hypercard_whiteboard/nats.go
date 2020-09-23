@@ -2,7 +2,9 @@ package hypercard_whiteboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -61,5 +63,44 @@ func (nc *natsClient) publish(ctx context.Context, event *Event) (err error) {
 		zap.String("rk", rk),
 		zap.Duration("in", time.Since(start)),
 	)
+	return
+}
+
+var natsHTTPCo = http.DefaultClient
+
+func (nc *natsClient) countUsersInRoom(ctx context.Context, bk string) (count uint32, err error) {
+	log := NewLogFromCtx(ctx)
+
+	var req *http.Request
+	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://nats:8222/connz?subs=1", nil); err != nil {
+		log.Error("", zap.Error(err))
+		return
+	}
+
+	var rep *http.Response
+	if rep, err = natsHTTPCo.Do(req); err != nil {
+		log.Error("", zap.Error(err))
+		return
+	}
+	defer rep.Body.Close()
+
+	var x struct {
+		Connections []struct {
+			SubscriptionsList []string `json:"subscriptions_list,omitempty"`
+		} `json:"connections,omitempty"`
+	}
+
+	if err = json.NewDecoder(rep.Body).Decode(&x); err != nil {
+		log.Error("", zap.Error(err))
+		return
+	}
+
+	for _, co := range x.Connections {
+		for _, sub := range co.SubscriptionsList {
+			if sub == bk {
+				count++
+			}
+		}
+	}
 	return
 }
