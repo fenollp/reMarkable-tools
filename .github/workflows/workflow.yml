@@ -36,11 +36,12 @@ jobs:
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
+        components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
+        working-directory: marauder
         use-cross: true
         command: build
-        working-directory: marauder
         args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
     # - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
     # - run: docker pull fenollp/rust-build-remarkable
