@@ -767,7 +767,7 @@ checksum = "7d947cbb889ed21c2a84be6ffbaebf5b4e0f4340638cba0444907e38b56be084"
 
 [[package]]
 name = "marauder"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-stream",
  "atomic 0.4.6",
@@ -775,13 +775,13 @@ dependencies = [
  "docopt",
  "env_logger",
  "futures",
- "itertools 0.9.0",
+ "itertools 0.8.2",
  "lazy_static",
  "libremarkable",
  "log",
  "nom",
  "prost",
- "rand 0.7.3",
+ "rand 0.4.6",
  "serde",
  "serde_json",
  "tokio",
