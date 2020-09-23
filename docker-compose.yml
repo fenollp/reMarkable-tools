@@ -12,6 +12,8 @@ services:
     - *NATS_USER
     - --pass
     - *NATS_PASS
+    - -m
+    - '8222'
     - -DVV
     ports:
     - '127.0.0.1:4222:4222'
@@ -23,9 +25,9 @@ services:
     - nats
     build: ./whiteboard-server
     image: wb
-    # hostname: wb
-    # container_name: wb
-    # restart: unless-stopped
+    hostname: wb
+    container_name: wb
+    restart: unless-stopped
     environment:
       PORT: '10000'
       NATS_USER: *NATS_USER

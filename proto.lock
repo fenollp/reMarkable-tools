@@ -54,6 +54,11 @@
                 "id": 6,
                 "name": "user_joined_the_room",
                 "type": "bool"
+              },
+              {
+                "id": 7,
+                "name": "users_in_the_room",
+                "type": "uint32"
               }
             ]
           },

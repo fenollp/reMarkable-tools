@@ -66,19 +66,6 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			return
 		}
 	}
-	// TODO: remove
-	go func() {
-		time.Sleep(5 * time.Second)
-		event := &Event{
-			CreatedAt: time.Now().UnixNano(),
-			InRoomId:  req.GetRoomId(),
-			ByUserId:  "HyperCard--whiteboard-server",
-			Event:     &Event_Drawing{Drawing: &eventDrawingHouse},
-		}
-		if err = srv.nc.publish(ctx, event); err != nil {
-			return
-		}
-	}()
 
 	// Leave event
 	defer func() {
@@ -92,6 +79,26 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 			return
 		}
 	}()
+
+	{
+		var count uint32
+		if count, err = srv.nc.countUsersInRoom(ctx, bk); err != nil {
+			log.Error("", zap.Error(err))
+			return
+		}
+		event := &Event{
+			CreatedAt: time.Now().UnixNano(),
+			InRoomId:  req.GetRoomId(),
+			ByUserId:  ctxUID(ctx),
+			Event:     &Event_UsersInTheRoom{UsersInTheRoom: count},
+		}
+		start = time.Now()
+		if err = stream.Send(event); err != nil {
+			log.Error("", zap.Error(err))
+			return
+		}
+		log.Debug("sent count event", zap.Duration("in", time.Since(start)))
+	}
 
 	for {
 		select {

@@ -11,6 +11,7 @@ jobs:
         toolchain: nightly # TODO: stable once const-fn is in
         target: armv7-unknown-linux-musleabihf
         override: true
+    - run: rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
     - run: make ujipenchars2.txt
       working-directory: marauder
     - run: make test
@@ -21,3 +22,4 @@ jobs:
         command: build
         working-directory: marauder
         args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
+      continue-on-error: true
