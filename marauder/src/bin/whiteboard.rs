@@ -577,19 +577,18 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
             paint(appref1, top_bar(c)).await;
 
             delay_for(INTER_DRAWING_PACE).await;
-            // TODO: tools
-            // let appref2 = appref1.upgrade_ref();
-            // tokio::spawn(async move {
-            //     paint_vec(appref2, drawings::top_left_help::f(c)).await;
-            // });
-            // let appref3 = appref1.upgrade_ref();
-            // tokio::spawn(async move {
-            //     paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
-            // });
-            // let appref4 = appref1.upgrade_ref();
-            // tokio::spawn(async move {
-            //     paint_vec(appref4, drawings::top_left_x3::f(c)).await;
-            // });
+            let appref2 = appref1.upgrade_ref();
+            tokio::spawn(async move {
+                paint_vec(appref2, drawings::top_left_help::f(c)).await;
+            });
+            let appref3 = appref1.upgrade_ref();
+            tokio::spawn(async move {
+                paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
+            });
+            let appref4 = appref1.upgrade_ref();
+            tokio::spawn(async move {
+                paint_vec(appref4, drawings::top_left_x3::f(c)).await;
+            });
             let count = PEOPLE_COUNT.load(Ordering::Relaxed);
             let appref5 = appref1.upgrade_ref();
             tokio::spawn(async move {

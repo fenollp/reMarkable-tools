@@ -59,9 +59,7 @@ whiteboard: VOLUME ?= cargoregistry
 whiteboard: fmt docker-env
 	docker volume inspect $(VOLUME) >/dev/null 2>&1 || docker volume create $(VOLUME)
 	# TODO: https://github.com/toltec-dev/toolchain/issues/2
-	docker run \
-		-it --rm \
-		--user builder \
+	$(RUN) -it \
 		-v "$$PWD":/home/builder/libremarkable:rw \
 		-v $(VOLUME):/home/builder/.cargo/registry \
 		-w /home/builder/libremarkable \
