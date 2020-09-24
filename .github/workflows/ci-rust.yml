@@ -10,7 +10,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        profile: minimal
+        # profile: minimal
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
@@ -26,7 +26,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        profile: minimal
+        # profile: minimal
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
@@ -60,7 +60,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        profile: minimal
+        # profile: minimal
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
