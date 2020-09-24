@@ -17,13 +17,14 @@ jobs:
       working-directory: marauder
     - run: make test
       working-directory: marauder
-    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
-      with:
-        use-cross: true
-        command: build
-        working-directory: marauder
-        args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
-      continue-on-error: true
+    # TODO: following fails with   error occurred: Failed to find tool. Is `arm-linux-gnueabihf-gcc` installed?
+    # - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+    #   with:
+    #     use-cross: true
+    #     command: build
+    #     working-directory: marauder
+    #     args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
+    #   continue-on-error: true
 
   whiteboard_hypercard:
     name: Whiteboard HyperCard

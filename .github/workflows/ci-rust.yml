@@ -14,6 +14,7 @@ jobs:
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
+        components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
@@ -32,6 +33,7 @@ jobs:
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
+        components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
@@ -68,7 +70,7 @@ jobs:
         toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
-        components: clippy
+        components: rustfmt, clippy
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
