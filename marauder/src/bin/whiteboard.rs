@@ -335,7 +335,9 @@ fn maybe_send_drawing() {
     strokes.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {}
+fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
+    debug!("[on_tch]");
+}
 
 fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     let (btn, pressed) = match input {
@@ -435,6 +437,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     repaint_people_counter(app, c, c - 1).await;
                 }
                 // Streamer MAY send never revisions of proto messages
+                #[allow(unreachable_patterns)]
                 Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
             },
         };
@@ -567,40 +570,35 @@ async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
 async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32) {
     paint_vec(app, drawing_for_people_counter(o, drawing::Color::White)).await;
     paint_vec(app, drawing_for_people_counter(n, drawing::Color::Black)).await;
+    paint(app, top_bar(drawing::Color::Black)).await;
 }
 
 async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let c = drawing::Color::Black;
-    let appref0 = app.upgrade_ref();
     debug!("[paint_mouldings] drawing UI...");
+    paint_vec(app, drawings::title_whiteboard::f(c)).await;
+    delay_for(INTER_DRAWING_PACE).await;
+    let appref1 = app.upgrade_ref();
     tokio::spawn(async move {
-        let appref1 = appref0.upgrade_ref();
-        tokio::spawn(async move {
-            paint(appref1, top_bar(c)).await;
-
-            delay_for(INTER_DRAWING_PACE).await;
-            let appref2 = appref1.upgrade_ref();
-            tokio::spawn(async move {
-                paint_vec(appref2, drawings::top_left_help::f(c)).await;
-            });
-            let appref3 = appref1.upgrade_ref();
-            tokio::spawn(async move {
-                paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
-            });
-            let appref4 = appref1.upgrade_ref();
-            tokio::spawn(async move {
-                paint_vec(appref4, drawings::top_left_x3::f(c)).await;
-            });
-            let count = PEOPLE_COUNT.load(Ordering::Relaxed);
-            let appref5 = appref1.upgrade_ref();
-            tokio::spawn(async move {
-                paint_vec(appref5, drawing_for_people_counter(count, c)).await;
-            });
-        });
-        delay_for(INTER_DRAWING_PACE).await;
-        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
+        paint(appref1, top_bar(c)).await;
     });
-    debug!("[paint_mouldings] drawing UI... Done.");
+    let appref2 = app.upgrade_ref();
+    tokio::spawn(async move {
+        paint_vec(appref2, drawings::top_left_help::f(c)).await;
+    });
+    let appref3 = app.upgrade_ref();
+    tokio::spawn(async move {
+        paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
+    });
+    let appref4 = app.upgrade_ref();
+    tokio::spawn(async move {
+        paint_vec(appref4, drawings::top_left_x3::f(c)).await;
+    });
+    let appref5 = app.upgrade_ref();
+    tokio::spawn(async move {
+        let count = PEOPLE_COUNT.load(Ordering::Relaxed);
+        paint_vec(appref5, drawing_for_people_counter(count, c)).await;
+    });
 }
 
 fn top_bar(c: drawing::Color) -> Drawing {

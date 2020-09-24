@@ -27,7 +27,7 @@ jobs:
 
   whiteboard_hypercard:
     name: Whiteboard HyperCard
-    # runs-on: ubuntu-latest
+    # TODO: runs-on: ubuntu-latest
     runs-on: ubuntu-16.04
     steps:
     - uses: actions/checkout@v2
@@ -43,15 +43,21 @@ jobs:
         use-cross: true
         command: build
         args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
-    # - run: docker volume inspect cargo-registry >/dev/null 2>&1 || docker volume create cargo-registry
-    # - run: docker pull fenollp/rust-build-remarkable
-    # - working-directory: marauder
-    #   run: |
-    #     docker run --rm --user $(id -u):$(id -g) \
-    #       -v "$PWD":/home/builder/libremarkable:rw \
-    #       -v cargo-registry:/home/builder/.cargo/registry \
-    #       -w /home/builder/libremarkable \
-    #       fenollp/rust-build-remarkable \
-    #       cargo build --release --bin whiteboard --target=armv7-unknown-linux-gnueabihf --locked #--frozen #--offline
-    - run: ls -lha ./marauder/target/*/release/*
-    - run: ls -lha ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
+    - id: create_release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
+        asset_name: whiteboard
+        asset_content_type: application/octet-stream
