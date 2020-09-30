@@ -295,14 +295,10 @@ fn maybe_send_drawing() {
     }
     debug!("strokes.len() = {:?}", len);
 
-    let mut ws = Vec::<u32>::new();
-    let mut xs = Vec::<f32>::new();
-    let mut ys = Vec::<f32>::new();
-    let mut ps = Vec::<i32>::new();
-    ws.reserve(len);
-    xs.reserve(len);
-    ys.reserve(len);
-    ps.reserve(len);
+    let mut ws = Vec::<u32>::with_capacity(len);
+    let mut xs = Vec::<f32>::with_capacity(len);
+    let mut ys = Vec::<f32>::with_capacity(len);
+    let mut ps = Vec::<i32>::with_capacity(len);
     for i in 0..len {
         let dot = strokes[i];
         ws.push(dot.1);
