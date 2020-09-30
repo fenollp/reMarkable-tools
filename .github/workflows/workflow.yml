@@ -39,22 +39,29 @@ jobs:
         use-cross: true
         command: build
         args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
-    - if: startsWith(github.ref, 'refs/tags/')
-      id: create_release
-      uses: actions/create-release@v1
+    # - if: startsWith(github.ref, 'refs/tags/')
+    #   id: create_release
+    #   uses: actions/create-release@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     tag_name: ${{ github.ref }}
+    #     draft: false
+    #     prerelease: false
+    # - if: startsWith(github.ref, 'refs/tags/')
+    #   id: upload-release-asset
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
+    #     asset_name: whiteboard
+    #     asset_content_type: application/octet-stream
+    - uses: softprops/action-gh-release@v1 # TODO: https://github.com/actions/create-release/issues/29
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        draft: false
-        prerelease: false
-    - if: startsWith(github.ref, 'refs/tags/')
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
-        asset_name: whiteboard
-        asset_content_type: application/octet-stream
