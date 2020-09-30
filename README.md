@@ -86,3 +86,8 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 * https://en.wikipedia.org/wiki/TRIZ
 * https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
 * https://github.com/alexandre01/deepsvg
+
+## Donation
+
+Feel free to donate to me through paypal.me/pierrefenoll1
+Make sure to describe what I should be working on :)

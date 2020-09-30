@@ -1,6 +1,7 @@
 on: [push]
 name: Build for reMarkable
 jobs:
+
   build_for_remarkable:
     name: with musl
     runs-on: ubuntu-latest
@@ -11,15 +12,49 @@ jobs:
         toolchain: nightly # TODO: stable once const-fn is in
         target: armv7-unknown-linux-musleabihf
         override: true
-    - run: rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-    - run: make ujipenchars2.txt
-      working-directory: marauder
-    - run: make test
-      working-directory: marauder
+        components: rustfmt
+    # TODO: following fails with   error occurred: Failed to find tool. Is `arm-linux-gnueabihf-gcc` installed?
+    # - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+    #   with:
+    #     use-cross: true
+    #     command: build
+    #     working-directory: marauder
+    #     args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
+    #   continue-on-error: true
+
+  whiteboard_hypercard:
+    name: Whiteboard HyperCard
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        target: armv7-unknown-linux-gnueabihf
+        override: true
+        components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
+        working-directory: marauder
         use-cross: true
         command: build
-        working-directory: marauder
-        args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
-      continue-on-error: true
+        args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
+    - if: startsWith(github.ref, 'refs/tags/')
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - if: startsWith(github.ref, 'refs/tags/')
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
+        asset_name: whiteboard
+        asset_content_type: application/octet-stream
