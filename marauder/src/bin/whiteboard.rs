@@ -456,14 +456,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
         }
         let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
             // start
-            (
-                cgmath::Point2 {
-                    x: xs[i + 0],
-                    y: ys[i + 0],
-                },
-                ps[i + 0],
-                ws[i + 0],
-            ),
+            (cgmath::Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
             // ctrl
             (
                 cgmath::Point2 {
@@ -556,14 +549,12 @@ fn drawing_for_people_counter(c: u32, color: drawing::Color) -> Vec<Drawing> {
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
-    let mut i = 0;
     let len = xs.len();
-    for x in xs {
+    for (i, x) in xs.into_iter().enumerate() {
         if i != 0 && i != len {
             delay_for(INTER_DRAWING_PACE).await;
         }
         paint(app, x).await;
-        i += 1;
     }
 }
 

@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use crate::proto::whiteboard::{drawing::Color, Drawing};
 
 pub fn f(c: Color) -> Vec<Drawing> {
