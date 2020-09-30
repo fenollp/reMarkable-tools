@@ -15,6 +15,8 @@ jobs:
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
+    - run: make ujipenchars2.txt
+      working-directory: marauder
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
@@ -34,6 +36,8 @@ jobs:
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
+    - run: make ujipenchars2.txt
+      working-directory: marauder
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder

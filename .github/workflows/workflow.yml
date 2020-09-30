@@ -13,10 +13,6 @@ jobs:
         target: armv7-unknown-linux-musleabihf
         override: true
         components: rustfmt
-    - run: make ujipenchars2.txt
-      working-directory: marauder
-    - run: make test
-      working-directory: marauder
     # TODO: following fails with   error occurred: Failed to find tool. Is `arm-linux-gnueabihf-gcc` installed?
     # - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
     #   with:
@@ -28,8 +24,7 @@ jobs:
 
   whiteboard_hypercard:
     name: Whiteboard HyperCard
-    # TODO: runs-on: ubuntu-latest
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
