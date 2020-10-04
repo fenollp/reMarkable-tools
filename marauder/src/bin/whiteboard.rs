@@ -29,6 +29,8 @@ use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
 use std::time::Duration;
+use tokio::spawn;
+use tokio::task::spawn_blocking;
 use tokio::time::delay_for;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
@@ -123,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.draw_elements();
 
     let appref0 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_mouldings(appref0).await;
     });
 
@@ -138,20 +140,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let appref = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
-    tokio::task::spawn_blocking(move || {
-        //TODO: PR to allow async in spawn_blocking
-        let rt_handle = tokio::runtime::Handle::current();
-        rt_handle.block_on(async move {
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop_recv(appref, ch2, ctx2).await;
             info!("[loop_recv] terminated");
-        });
+        })
     });
 
     info!("[TXer] spawn-ing");
-    tokio::task::spawn_blocking(move || {
-        let rt_handle = tokio::runtime::Handle::current();
-        rt_handle.block_on(async move {
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
             info!("[TXer] spawn-ed");
             let (tx, rx) = std::sync::mpsc::channel();
             //TODO: let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -171,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
                 }
             }
-        });
+        })
     });
 
     info!("Init complete. Beginning event dispatch...");
@@ -363,12 +362,10 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             app.draw_elements();
 
             let appref = app.upgrade_ref();
-            // TODO: make libremarkable async
-            tokio::task::spawn_blocking(move || {
-                let rt_handle = tokio::runtime::Handle::current();
-                rt_handle.block_on(async move {
+            spawn_blocking(move || {
+                tokio::runtime::Handle::current().block_on(async move {
                     paint_mouldings(appref).await;
-                });
+                })
             });
         }
         gpio::PhysicalButton::POWER => {
@@ -566,23 +563,23 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     paint_vec(app, drawings::title_whiteboard::f(c)).await;
     delay_for(INTER_DRAWING_PACE).await;
     let appref1 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint(appref1, top_bar(c)).await;
     });
     let appref2 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref2, drawings::top_left_help::f(c)).await;
     });
     let appref3 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
     });
     let appref4 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref4, drawings::top_left_x3::f(c)).await;
     });
     let appref5 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         let count = PEOPLE_COUNT.load(Ordering::Relaxed);
         paint_vec(appref5, drawing_for_people_counter(count, c)).await;
     });
