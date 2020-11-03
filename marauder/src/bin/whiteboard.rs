@@ -64,6 +64,15 @@ struct Ctx {
     user_id: String,
 }
 
+#[derive(Debug)]
+struct Scribble {
+    color: color,
+    mult: u32,
+    pos_x: f32,
+    pos_y: f32,
+    pressure: i32,
+}
+
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: 2 + 70,
     left: 0,
@@ -77,7 +86,7 @@ lazy_static! {
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
-    static ref STROKES: Mutex<Vec<(color, u32, f32, f32, i32)>> = Mutex::new(Vec::new());
+    static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
 }
 
@@ -206,8 +215,14 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
             let (col, mult) = (color::BLACK, DrawMode::default().get_size());
 
             {
-                let mut strokes = STROKES.lock().unwrap();
-                strokes.push((col, mult, position.x, position.y, pressure as i32));
+                let mut scribbles = SCRIBBLES.lock().unwrap();
+                scribbles.push(Scribble {
+                    color: col,
+                    mult,
+                    pos_x: position.x,
+                    pos_y: position.y,
+                    pressure: pressure as i32,
+                });
             }
 
             wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
@@ -287,26 +302,26 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
 }
 
 fn maybe_send_drawing() {
-    let mut strokes = STROKES.lock().unwrap();
-    let len = strokes.len();
+    let mut scribbles = SCRIBBLES.lock().unwrap();
+    let len = scribbles.len();
     if len < 3 {
         return;
     }
-    debug!("strokes.len() = {:?}", len);
+    debug!("scribbles.len() = {:?}", len);
 
     let mut ws = Vec::<u32>::with_capacity(len);
     let mut xs = Vec::<f32>::with_capacity(len);
     let mut ys = Vec::<f32>::with_capacity(len);
     let mut ps = Vec::<i32>::with_capacity(len);
     for i in 0..len {
-        let dot = strokes[i];
-        ws.push(dot.1);
-        xs.push(dot.2);
-        ys.push(dot.3);
-        ps.push(dot.4);
+        let scribble = &scribbles[i];
+        ws.push(scribble.mult);
+        xs.push(scribble.pos_x);
+        ys.push(scribble.pos_y);
+        ps.push(scribble.pressure);
     }
 
-    let col = match strokes[0].0 {
+    let col = match scribbles[0].color {
         color::WHITE => drawing::Color::White,
         _ => drawing::Color::Black,
     };
@@ -327,7 +342,7 @@ fn maybe_send_drawing() {
         e => error!("e = {:?}", e),
     };
     debug!("unlocked TX");
-    strokes.clear();
+    scribbles.clear();
 }
 
 fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
