@@ -1,5 +1,48 @@
 # reMarkable-tools
-Tools for the reMarkable paper tablet
+Tools for the [reMarkable paper tablet](https://remarkable.com/) that I or others develop.
+
+## Donate
+
+Feel free to donate to me through [paypal.me/pierrefenoll1](paypal.me/pierrefenoll1)  
+Make sure to describe what I should be working on :)
+
+## Whiteboard HyperCard ~ live collaboration/drawing/chat/whiteboarding
+
+Easiest installation through [toltec's `opkg`](https://github.com/toltec-dev/toltec)
+```
+opkg update && opkg install whiteboard_hypercard
+```
+
+### Self-hosting whiteboard-server / hosting private rooms
+
+On a machine with IP `1.2.3.4` reachable over the Internet, run:
+```
+git clone https://github.com/fenollp/reMarkable-tools.git && cd reMarkable-tools && docker-compose up --build --abort-on-container-exit
+```
+Now on your tablet, run the `whiteboard` Rust application with `--host`, as in:
+```
+.../whiteboard --host=http://1.2.3.4:10000
+```
+Finally, `docker-compose` should show you something akin to:
+```
+nats_1        | [1] 2020/11/03 14:26:24.435123 [DBG] 172.20.0.3:60308 - cid:1 - Client Ping Timer
+nats_1        | [1] 2020/11/03 14:26:24.435145 [DBG] 172.20.0.3:60308 - cid:1 - Delaying PING due to remote ping 2s ago
+nats_1        | [1] 2020/11/03 14:28:22.270230 [TRC] 172.20.0.3:60308 - cid:1 - <<- [PING]
+nats_1        | [1] 2020/11/03 14:28:22.270306 [TRC] 172.20.0.3:60308 - cid:1 - ->> [PONG]
+nats_1        | [1] 2020/11/03 14:28:24.435532 [DBG] 172.20.0.3:60308 - cid:1 - Client Ping Timer
+nats_1        | [1] 2020/11/03 14:28:24.435701 [DBG] 172.20.0.3:60308 - cid:1 - Delaying PING due to remote ping 2s ago
+wb            | 2020-11-03T14:28:41.402Z	INFO	hypercard_whiteboard/rpc_recv_events.go:32	handling RecvEvent	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584"}
+wb            | 2020-11-03T14:28:41.402Z	DEBUG	hypercard_whiteboard/rpc_recv_events.go:46	listening for events	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "bk": "hc.wb.1.evt.living-room.*.*"}
+wb            | 2020-11-03T14:28:41.402Z	DEBUG	hypercard_whiteboard/nats.go:44	encoding	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "event": {"created_at":1604413721402953665,"by_user_id":"c91dd90e-77b8-477c-94f7-a25ff0e5b584","in_room_id":"living-room","Event":{"UserJoinedTheRoom":true}}}
+wb            | 2020-11-03T14:28:41.403Z	DEBUG	hypercard_whiteboard/nats.go:50	encoded	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "bytes": 63, "in": "160.551µs"}
+wb            | 2020-11-03T14:28:41.403Z	DEBUG	hypercard_whiteboard/nats.go:56	publishing	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "rk": "hc.wb.1.evt.living-room.c91dd90e-77b8-477c-94f7-a25ff0e5b584.userjoinedroom"}
+wb            | 2020-11-03T14:28:41.403Z	DEBUG	hypercard_whiteboard/nats.go:62	published	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "rk": "hc.wb.1.evt.living-room.c91dd90e-77b8-477c-94f7-a25ff0e5b584.userjoinedroom", "in": "6.926µs"}
+nats_1        | [1] 2020/11/03 14:28:41.403146 [TRC] 172.20.0.3:60308 - cid:1 - <<- [SUB hc.wb.1.evt.living-room.*.*  1]
+nats_1        | [1] 2020/11/03 14:28:41.403446 [TRC] 172.20.0.3:60308 - cid:1 - <<- [PUB hc.wb.1.evt.living-room.c91dd90e-77b8-477c-94f7-a25ff0e5b584.userjoinedroom 63]
+nats_1        | [1] 2020/11/03 14:28:41.403472 [TRC] 172.20.0.3:60308 - cid:1 - <<- MSG_PAYLOAD: ["\b\xc1\x9f\xf1\x87\xf7\xb8\x81\xa2\x16\x12$c91dd90e-77b8-477c-94f7-a25ff0e5b584\x1a\vliving-room0\x01"]
+nats_1        | [1] 2020/11/03 14:28:41.403491 [TRC] 172.20.0.3:60308 - cid:1 - ->> [MSG hc.wb.1.evt.living-room.c91dd90e-77b8-477c-94f7-a25ff0e5b584.userjoinedroom 1 63]
+wb            | 2020-11-03T14:28:41.404Z	DEBUG	hypercard_whiteboard/rpc_recv_events.go:100	sent count event	{"": "c91dd90e-77b8-477c-94f7-a25ff0e5b584", "in": "73.035µs"}
+```
 
 ## koreader
 * https://github.com/koreader/koreader/releases/latest
@@ -86,8 +129,3 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 * https://en.wikipedia.org/wiki/TRIZ
 * https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
 * https://github.com/alexandre01/deepsvg
-
-## Donation
-
-Feel free to donate to me through paypal.me/pierrefenoll1
-Make sure to describe what I should be working on :)
