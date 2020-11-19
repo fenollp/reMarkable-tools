@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/audit-check@v1
-      # FIXME: needs to cd into ./marauder https://github.com/actions-rs/audit-check/issues/116
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+    # - uses: actions-rs/audit-check@v1
+    #   # FIXME: needs to cd into ./marauder https://github.com/actions-rs/audit-check/issues/116
+    #   with:
+    #     token: ${{ secrets.GITHUB_TOKEN }}
