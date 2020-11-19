@@ -101,7 +101,7 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 
 ## marauder
 
-* [![Marauder's map](https://thumbs.gfycat.com/AcrobaticLastingBeardedcollie-mobile.jpg)](https://zippy.gfycat.com/AcrobaticLastingBeardedcollie.webm)
+* [![Marauder's map](https://thumbs.gfycat.com/AcrobaticLastingBeardedcollie-size_restricted.gif)](https://zippy.gfycat.com/AcrobaticLastingBeardedcollie.webm)
 * https://github.com/ax3l/lines-are-rusty
 	* https://github.com/reHackable/maxio/blob/master/tools/rM2svg
 * datasets & models for online writting & drawings
@@ -129,3 +129,4 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 * https://en.wikipedia.org/wiki/TRIZ
 * https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
 * https://github.com/alexandre01/deepsvg
+* https://ai.googleblog.com/2020/11/using-gans-to-create-fantastical.html
