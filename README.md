@@ -130,3 +130,19 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 * https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
 * https://github.com/alexandre01/deepsvg
 * https://ai.googleblog.com/2020/11/using-gans-to-create-fantastical.html
+* https://github.com/MarkMoHR/Awesome-Sketch-Based-Applications
+* https://github.com/topics/drawing
+* [Sketch-Based-Deep-Learning](https://github.com/qyzdao/Sketch-Based-Deep-Learning)
+    * [![A-Benchmark-for-Rough-Sketch-Cleanup](https://pbs.twimg.com/media/EjvgmDyWAAE05JD?format=jpg&name=orig)](https://github.com/Nauhcnay/A-Benchmark-for-Rough-Sketch-Cleanup)
+    * [BézierSketch: A generative model for scalable vector sketches](https://arxiv.org/abs/2007.02190)
+    * [Sketch-R2CNN: An Attentive Network for Vector Sketch Recognition](https://arxiv.org/abs/1811.08170)
+* https://github.com/Ruturaj123/Flowchart-Detection
+* [Deep Sketch-guided Cartoon Video Synthesis](https://arxiv.org/abs/2008.04149)
+* [CoSE: While previous approaches rely on sequence-based models for drawings of basic objects or handwritten text, we propose a model that treats drawings as a collection of strokes](https://eth-ait.github.io/cose/)
+* https://github.com/MarkMoHR/Awesome-Sketch-Synthesis
+* https://github.com/topics/vector-sketch
+    * [Animated Construction of Line Drawings](http://sweb.cityu.edu.hk/hongbofu/projects/animatedConstructionOfLineDrawings_SiggA11/)
+        * [Contour Drawing Dataset / Photo-Sketching: Inferring Contour Drawings from Images](https://www.cs.cmu.edu/~mengtial/proj/sketch/)
+    * [Scones: Towards Conversational Authoring of Sketches](http://people.eecs.berkeley.edu/~eschoop/docs/scones.pdf)
+    * [Free-hand sketch synthesis with deformable stroke models](https://panly099.github.io/skSyn.html)
+    * [Convert images to vectorized line drawings for plotters.](https://github.com/LingDong-/linedraw)
