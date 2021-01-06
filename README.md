@@ -146,3 +146,4 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
     * [Scones: Towards Conversational Authoring of Sketches](http://people.eecs.berkeley.edu/~eschoop/docs/scones.pdf)
     * [Free-hand sketch synthesis with deformable stroke models](https://panly099.github.io/skSyn.html)
     * [Convert images to vectorized line drawings for plotters.](https://github.com/LingDong-/linedraw)
+* [Draw.io and Terraform = Brainboard, Graphical Way to Do Terraform](https://news.ycombinator.com/item?id=25536133)
