@@ -77,17 +77,20 @@ journalctl --vacuum-size=2M
 
 ## HyperCards
 
-Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/duplicated.
+Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connected/duplicated.
 * tools / modifiers are square cards snapping to the edges of the screen
 	* *henceforth mentioned as `[ToolX]` for tool X*
 	* using them / modifying them by a press held while using the pencil
+            * similar to Minecraft's mix & match: action through combination
 	* a `[?]` tool always hangs in a corner, pressing = shows description text (like crosswords)
-	* modification (reorganization / addition / removal) through drawing
+	* modification (reorganization / addition / removal) through drawing and pressing
 	* tools icons can be drawn too / loaded from a font / loaded from a builtin set of images
+	* pen & fingers are different devices for different purposes
+	    * => drag/move and pinch/zoom (think Apple trackpad gestures) not a pen thing
 * whiteboard card
 	* rectangle that can be moved by dragging on the edges
 	* zoom/rotation by dragging in the area (not the edges)
-		* MIGHT: zooming hard moves to another user's view?
+		* MIGHT: zooming hard moves to another user's view? --> canvas is a window/camera view that can move in 2+1D
 	* some bi-directional communication with a networked service
 		* user joins a room and shares their live drawings
 		* It is possible to combine a [Selection]-ed group of strokes and [Digitize] to ask service for translation
@@ -98,6 +101,12 @@ Visible rectangular elements that can be drawn/moved/zoomed/rotated/connected/du
 	* draw approximately on one or more strokes
 	* creates a group that can be used with other modifiers
 	* press another tool before unpressing this one to pass the group to the other tool
+* `[Image]`
+	* add an image to a layer
+        * should be able to dim that layer
+	* select the tool's image with `[Setter] > [Image]` --> opens image picker
+	* image should be draggable + zoomable (= two-finger gesture on iOS Reddit app's image viewer)
+        * should be able to draw on top of said image
 
 ## marauder
 
