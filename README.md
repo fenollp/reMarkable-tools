@@ -10,7 +10,7 @@ Make sure to describe what I should be working on :)
 
 Easiest installation through [toltec's `opkg`](https://github.com/toltec-dev/toltec)
 ```
-opkg update && opkg install whiteboard_hypercard
+opkg update && opkg install whiteboard-hypercard
 ```
 
 ### Self-hosting whiteboard-server / hosting private rooms
