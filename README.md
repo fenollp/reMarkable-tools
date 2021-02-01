@@ -3,7 +3,7 @@ Tools for the [reMarkable paper tablet](https://remarkable.com/) that I or other
 
 ## Donate
 
-Feel free to donate to me through [paypal.me/pierrefenoll1](paypal.me/pierrefenoll1)  
+Feel free to donate to me through [paypal.me/pierrefenoll1](https://www.paypal.com/paypalme/pierrefenoll1)  
 Make sure to describe what I should be working on :)
 
 ## Whiteboard HyperCard ~ live collaboration/drawing/chat/whiteboarding
