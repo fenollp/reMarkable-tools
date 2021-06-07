@@ -156,3 +156,14 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
     * [Free-hand sketch synthesis with deformable stroke models](https://panly099.github.io/skSyn.html)
     * [Convert images to vectorized line drawings for plotters.](https://github.com/LingDong-/linedraw)
 * [Draw.io and Terraform = Brainboard, Graphical Way to Do Terraform](https://news.ycombinator.com/item?id=25536133)
+
+https://github.com/cod-ed/handwrite
+http://potrace.sourceforge.net/
+[21, Im2Vec: Synthesizing Vector Graphics without Vector Supervision](https://arxiv.org/abs/2102.02798v1)
+
+[Tally marks (from around the world) as battery bar](https://i.redd.it/qgr5kte3gak51.jpg)
+
+https://github.com/javierbyte/pintr
+https://news.ycombinator.com/item?id=27224094
+https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/
+https://www.jaided.ai/easyocr/

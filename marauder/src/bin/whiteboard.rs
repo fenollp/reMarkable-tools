@@ -138,6 +138,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paint_mouldings(appref0).await;
     });
 
+    let appref42 = app.upgrade_ref();
+    spawn(async move {
+        paint_svg(appref42).await;
+    });
+
     let host = args.clone().flag_host;
     info!("[main] connecting to {:?}...", host);
     let ch = Endpoint::from_shared(host).unwrap().connect().await?;
@@ -380,6 +385,7 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             spawn_blocking(move || {
                 tokio::runtime::Handle::current().block_on(async move {
                     paint_mouldings(appref).await;
+                    paint_svg(appref).await;
                 })
             });
         }
@@ -600,18 +606,187 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     });
 }
 
+/////////////////////////////////////////
+//https://stackoverflow.com/a/47869373/1418165
+/// produces: [ linear_interpol(start, end, i/steps) | i <- 0..steps ]
+/// (does NOT include "end")
+///
+/// linear_interpol(a, b, p) = (1 - p) * a + p * b
+pub struct FloatIterator {
+    current: u32,
+    current_back: u32,
+    steps: u32,
+    start: f32,
+    end: f32,
+}
+
+impl FloatIterator {
+    pub fn new(start: f32, end: f32, steps: u32) -> Self {
+        FloatIterator {
+            current: 0,
+            current_back: steps,
+            steps,
+            start,
+            end,
+        }
+    }
+
+    /// calculates number of steps from (end - start) / step
+    pub fn new_with_step(start: f32, end: f32, step: f32) -> Self {
+        let steps = ((end - start) / step).abs().round() as u32;
+        Self::new(start, end, steps)
+    }
+
+    pub fn length(&self) -> u32 {
+        self.current_back - self.current
+    }
+
+    fn at(&self, pos: u32) -> f32 {
+        let f_pos = pos as f32 / self.steps as f32;
+        (1. - f_pos) * self.start + f_pos * self.end
+    }
+
+    /// panics (in debug) when len doesn't fit in usize
+    fn usize_len(&self) -> usize {
+        let l = self.length();
+        debug_assert!(l <= ::std::usize::MAX as u32);
+        l as usize
+    }
+}
+
+impl Iterator for FloatIterator {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.current_back {
+            return None;
+        }
+        let result = self.at(self.current);
+        self.current += 1;
+        Some(result)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.usize_len();
+        (l, Some(l))
+    }
+
+    fn count(self) -> usize {
+        self.usize_len()
+    }
+}
+
+impl DoubleEndedIterator for FloatIterator {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.current >= self.current_back {
+            return None;
+        }
+        self.current_back -= 1;
+        let result = self.at(self.current_back);
+        Some(result)
+    }
+}
+
+impl ExactSizeIterator for FloatIterator {
+    fn len(&self) -> usize {
+        self.usize_len()
+    }
+
+    //fn is_empty(&self) -> bool {
+    //    self.length() == 0u32
+    //}
+}
+
+// pub fn main() {
+//     println!(
+//         "count: {}",
+//         FloatIterator::new_with_step(-1.0, 1.0, 0.01).count()
+//     );
+//     for f in FloatIterator::new_with_step(-1.0, 1.0, 0.01) {
+//         println!("{}", f);
+//     }
+// }
+/////////////////////////////////////////
+
 fn top_bar(c: drawing::Color) -> Drawing {
     let (start, end): (usize, usize) = (1, CANVAS_REGION.width.try_into().unwrap());
-    let count = (end - start + 1) / 2;
+    let xs = dots(start as f32, end as f32, 8.0);
+    let count = xs.len();
     Drawing {
-        xs: (start..end)
-            .into_iter()
-            .step_by(2)
-            .map(|x| x as f32)
-            .collect(),
+        xs,
         ys: vec![70.444; count],
         pressures: vec![3992; count],
         widths: vec![2; count],
         color: c as i32,
     }
+}
+
+fn dots(start: f32, end: f32, steps: f32) -> Vec<f32> {
+    //     (start..end).into_iter().map(|i| i as f32 * steps).collect()
+    FloatIterator::new_with_step(start, end, steps).collect()
+}
+
+fn dots_svg(start: (f32, f32), end: (f32, f32)) -> Drawing {
+    let steps = 8.;
+    let mut xs = dots(100. + end.0 / 100., 400. + start.0, steps);
+    let mut ys = dots(400. + start.1, 100. + end.1 / 100., steps);
+    let xcount = xs.len();
+    assert_ne!(xcount, 0);
+    match ys.len() {
+        ycount if xcount < ycount => ys = ys[..xcount].to_vec(),
+        ycount if xcount > ycount => xs = xs[..ycount].to_vec(),
+        _ => (),
+    }
+    Drawing {
+        xs,
+        ys,
+        pressures: vec![3992 / 2; xcount],
+        widths: vec![2; xcount],
+        color: drawing::Color::Black.into(),
+    }
+}
+
+// https://www.michaelfogleman.com/
+//https://store.michaelfogleman.com/products/elementary-cellular-automata
+//https://github.com/fogleman/ribbon
+//https://github.com/fogleman/terrarium
+//https://github.com/fogleman/Tiling
+//https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
+/////////////https://github.com/fogleman/ln
+//https://en.wikipedia.org/wiki/Turtle_graphics
+//https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
+//https://oeis.org/A088218
+
+async fn paint_svg(app: &mut ApplicationContext<'_>) {
+    info!("[main] paint_svg?");
+
+    // https://wiki.evilmadscientist.com/Hershey_Text
+    // https://github.com/ax3l/lines-are-beautiful/blob/55696bc76a6d162f96eb650df400aec3bd1b1b1e/include/rmlab/renderer/lines2svg.cpp#L32
+    // https://github.com/rorycl/rm2pdf/blob/d690ca0ea3086e4b3f14a1cb698b69e5d41c8288/rmparse/rmparse_test.go#L38
+    // https://gitlab.com/oskay/svg-fonts/-/blob/9124c64cbdcadd50931ecfc727ab33ac2a5cf679/fonts/EMS/EMSCasualHand.svg
+
+    // <glyph unicode="/" glyph-name="slash" horiz-adv-x="290" d="M 81.9 -59.9 L 299 1083.6" />
+    let d = dots_svg((81.9, -59.9), (299., 1083.6));
+
+    // <glyph unicode="@" glyph-name="at" horiz-adv-x="876" d="M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246" />
+    // let xs: Vec<f32> = vec![M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246];
+    // let ys: Vec<f32> = vec![M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246];
+    // let ps: Vec<i32> = vec![1024, 1024];
+    // let ws: Vec<u32> = vec![2, 2];
+
+    paint(app, d).await;
+
+    // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d
+    // <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    //   <path fill="none" stroke="red"
+    //     d="M 10,30
+    //        A 20,20 0,0,1 50,30
+    //        A 20,20 0,0,1 90,30
+    //        Q 90,60 50,90
+    //        Q 10,60 10,30 z" />
+    // </svg>
+    // let xs: Vec<f32> = vec![10, 20, 50, 20, 90, 90, 50, 10, 10];
+    // let ys: Vec<f32> = vec![30, 20, 30, 60, ];
+
+    info!("[main] paint_svg!");
 }
