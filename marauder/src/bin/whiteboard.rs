@@ -1,4 +1,7 @@
+#![feature(destructuring_assignment)]
+
 use docopt::Docopt;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
@@ -464,6 +467,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
         _ => color::BLACK,
     };
     let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
+    assert!(xs.len() >= 3);
     for i in 0..(xs.len() - 2) {
         if i != 0 {
             delay_for(DRAWING_PACE).await;
@@ -563,9 +567,8 @@ fn drawing_for_people_counter(c: u32, color: drawing::Color) -> Vec<Drawing> {
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
-    let len = xs.len();
     for (i, x) in xs.into_iter().enumerate() {
-        if i != 0 && i != len {
+        if i != 0 {
             delay_for(INTER_DRAWING_PACE).await;
         }
         paint(app, x).await;
@@ -726,25 +729,27 @@ fn dots(start: f32, end: f32, steps: f32) -> Vec<f32> {
     FloatIterator::new_with_step(start, end, steps).collect()
 }
 
-fn dots_svg(start: (f32, f32), end: (f32, f32)) -> Drawing {
-    let steps = 8.;
-    let mut xs = dots(100. + end.0 / 100., 400. + start.0, steps);
-    let mut ys = dots(400. + start.1, 100. + end.1 / 100., steps);
-    let xcount = xs.len();
-    assert_ne!(xcount, 0);
-    match ys.len() {
-        ycount if xcount < ycount => ys = ys[..xcount].to_vec(),
-        ycount if xcount > ycount => xs = xs[..ycount].to_vec(),
-        _ => (),
-    }
-    Drawing {
-        xs,
-        ys,
-        pressures: vec![3992 / 2; xcount],
-        widths: vec![2; xcount],
-        color: drawing::Color::Black.into(),
-    }
-}
+// fn dots_svg(start: (f32, f32), end: (f32, f32)) -> Drawing {
+//     let steps = 8.;
+//     // let mut xs = dots(100. + end.0 / 100., 400. + start.0, steps);
+//     // let mut ys = dots(400. + start.1, 100. + end.1 / 100., steps);
+//     let mut xs: Vec<f32> = FloatIterator::new_with_step(start.0, end.0, steps).collect();
+//     let mut ys: Vec<f32> = FloatIterator::new_with_step(start.1, end.1, steps).collect();
+//     let xcount = xs.len();
+//     assert_ne!(xcount, 0);
+//     match ys.len() {
+//         ycount if xcount < ycount => ys = ys[..xcount].to_vec(),
+//         ycount if xcount > ycount => xs = xs[..ycount].to_vec(),
+//         _ => (),
+//     }
+//     Drawing {
+//         xs,
+//         ys,
+//         pressures: vec![3992 / 2; xcount],
+//         widths: vec![2; xcount],
+//         color: drawing::Color::Black.into(),
+//     }
+// }
 
 // https://www.michaelfogleman.com/
 //https://store.michaelfogleman.com/products/elementary-cellular-automata
@@ -766,15 +771,64 @@ async fn paint_svg(app: &mut ApplicationContext<'_>) {
     // https://gitlab.com/oskay/svg-fonts/-/blob/9124c64cbdcadd50931ecfc727ab33ac2a5cf679/fonts/EMS/EMSCasualHand.svg
 
     // <glyph unicode="/" glyph-name="slash" horiz-adv-x="290" d="M 81.9 -59.9 L 299 1083.6" />
-    let d = dots_svg((81.9, -59.9), (299., 1083.6));
 
     // <glyph unicode="@" glyph-name="at" horiz-adv-x="876" d="M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246" />
-    // let xs: Vec<f32> = vec![M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246];
-    // let ys: Vec<f32> = vec![M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246];
-    // let ps: Vec<i32> = vec![1024, 1024];
-    // let ws: Vec<u32> = vec![2, 2];
 
-    paint(app, d).await;
+    // <glyph unicode="1" glyph-name="one" horiz-adv-x="129" d="M 88.2 22.1 L 81.9 318 L 110 646" />
+    // let digit: Vec<(f32, f32)> = vec![(88.2, 22.1), (81.9, 318.), (110., 646.)];
+
+    // <glyph unicode="2" glyph-name="two" horiz-adv-x="532" d="M 91.4 394 L 101 397 L 220 498 L 312 545 L 356 542 L 372 476 L 337 331 L 268 183 L 170 28.4 L 318 94.5 L 444 154 L 539 173" />
+    // let digit: Vec<(f32, f32)> = vec![
+    //     (91.4, 394.),
+    //     (101., 397.),
+    //     (220., 498.),
+    //     (312., 545.),
+    //     (356., 542.),
+    //     (372., 476.),
+    //     (337., 331.),
+    //     (268., 183.),
+    //     (170., 28.4),
+    //     (318., 94.5),
+    //     (444., 154.),
+    //     (539., 173.),
+    // ];
+
+    // <glyph unicode="3" glyph-name="three" horiz-adv-x="447" d="M 252 15.8 L 287 12.6 L 391 97.7 L 435 233 L 419 340 L 324 369 L 180 299 L 151 296 L 173 343 L 312 542 L 343 595 L 318 614 L 180 570 L 66.1 507" />
+    let digit: Vec<(f32, f32)> = vec![
+        (252., 15.8),
+        (287., 12.6),
+        (391., 97.7),
+        (435., 233.),
+        (419., 340.),
+        (324., 369.),
+        (180., 299.),
+        (151., 296.),
+        (173., 343.),
+        (312., 542.),
+        (343., 595.),
+        (318., 614.),
+        (180., 570.),
+        (66.1, 507.),
+    ];
+
+    info!(">>> digit = {:?}", digit);
+    let digit_drawing: Vec<Drawing> = digit
+        .into_iter()
+        .tuple_windows()
+        .map(|((xa, ya), (xb, yb))| {
+            info!(">>> (({:?}, {:?}), ({:?}, {:?}))", xa, ya, xb, yb);
+            let (x0, y0, k) = (-200., -400., 0.25);
+            Drawing {
+                xs: vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)],
+                ys: vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)],
+                pressures: vec![3992 / 2; 3],
+                widths: vec![2; 3],
+                color: drawing::Color::Black.into(),
+            }
+        })
+        .collect();
+    info!(">>> digit_drawing = {:?}", digit_drawing);
+    paint_vec(app, digit_drawing).await;
 
     // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d
     // <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
