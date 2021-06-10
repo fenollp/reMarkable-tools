@@ -30,5 +30,7 @@ serde_json = "1.0"
 docopt = "1"
 uuid = { version = "0.8", features = ["v4"] }
 
+quick-xml = { version = "0.22", features = ["serialize"] }
+
 [build-dependencies]
 tonic-build = "0.3"
