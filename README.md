@@ -167,3 +167,4 @@ https://github.com/javierbyte/pintr
 https://news.ycombinator.com/item?id=27224094
 https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/
 https://www.jaided.ai/easyocr/
+https://3dlg-hcvc.github.io/plan2scene/

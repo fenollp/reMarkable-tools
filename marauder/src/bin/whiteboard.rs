@@ -1,5 +1,3 @@
-#![feature(destructuring_assignment)]
-
 use docopt::Docopt;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -13,18 +11,19 @@ use libremarkable::framebuffer::FramebufferRefresh;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
-use libremarkable::input::InputDevice;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use log::{debug, error, info, warn};
 use marauder::drawings;
+use marauder::fonts::emsdelight_swash_caps;
 use marauder::modes::draw::DrawMode;
 use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
 use marauder::proto::whiteboard::{drawing, event};
 use marauder::proto::whiteboard::{Drawing, Event};
 use marauder::proto::whiteboard::{RecvEventsReq, SendEventReq};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::process::Command;
@@ -91,6 +90,7 @@ lazy_static! {
         Mutex::new(VecDeque::new());
     static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
+    static ref FONT: HashMap<String, Vec<Vec<(f32, f32)>>> = emsdelight_swash_caps().unwrap();
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -139,11 +139,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let appref0 = app.upgrade_ref();
     spawn(async move {
         paint_mouldings(appref0).await;
-    });
-
-    let appref42 = app.upgrade_ref();
-    spawn(async move {
-        paint_svg(appref42).await;
     });
 
     let host = args.clone().flag_host;
@@ -376,11 +371,12 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
 
     match btn {
         gpio::PhysicalButton::RIGHT => {
-            if app.is_input_device_active(InputDevice::Multitouch) {
-                app.deactivate_input_device(InputDevice::Multitouch);
-            }
+            info!(">>> pressed right button");
         }
-        gpio::PhysicalButton::MIDDLE | gpio::PhysicalButton::LEFT => {
+        gpio::PhysicalButton::LEFT => {
+            info!(">>> pressed left button");
+        }
+        gpio::PhysicalButton::MIDDLE => {
             app.clear(btn == gpio::PhysicalButton::MIDDLE);
             app.draw_elements();
 
@@ -388,7 +384,6 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             spawn_blocking(move || {
                 tokio::runtime::Handle::current().block_on(async move {
                     paint_mouldings(appref).await;
-                    paint_svg(appref).await;
                 })
             });
         }
@@ -547,23 +542,25 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
     info!("REP = {:?}", rep);
 }
 
-fn drawing_for_people_counter(c: u32, color: drawing::Color) -> Vec<Drawing> {
-    match c {
-        0 => drawings::top_right_0::f(color),
-        1 => drawings::top_right_1::f(color),
-        2 => drawings::top_right_2::f(color),
-        3 => drawings::top_right_3::f(color),
-        4 => drawings::top_right_4::f(color),
-        5 => drawings::top_right_5::f(color),
-        6 => drawings::top_right_6::f(color),
-        7 => drawings::top_right_7::f(color),
-        8 => drawings::top_right_8::f(color),
-        9 => drawings::top_right_9::f(color),
+async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: drawing::Color) {
+    let digit = match count {
+        0 => FONT.get("0").unwrap(),
+        1 => FONT.get("1").unwrap(),
+        2 => FONT.get("2").unwrap(),
+        3 => FONT.get("3").unwrap(),
+        4 => FONT.get("4").unwrap(),
+        5 => FONT.get("5").unwrap(),
+        6 => FONT.get("6").unwrap(),
+        7 => FONT.get("7").unwrap(),
+        8 => FONT.get("8").unwrap(),
+        9 => FONT.get("9").unwrap(),
         _ => {
-            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", c);
-            drawings::top_right_9::f(color)
+            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", count);
+            FONT.get("9").unwrap()
         }
-    }
+    };
+
+    paint_glyph(app, &digit, (-15000., -150., 0.085), 3992, 3, color).await;
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
@@ -576,8 +573,8 @@ async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
 }
 
 async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32) {
-    paint_vec(app, drawing_for_people_counter(o, drawing::Color::White)).await;
-    paint_vec(app, drawing_for_people_counter(n, drawing::Color::Black)).await;
+    paint_people_counter(app, o, drawing::Color::White).await;
+    paint_people_counter(app, n, drawing::Color::Black).await;
     paint(app, top_bar(drawing::Color::Black)).await;
 }
 
@@ -605,7 +602,7 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let appref5 = app.upgrade_ref();
     spawn(async move {
         let count = PEOPLE_COUNT.load(Ordering::Relaxed);
-        paint_vec(appref5, drawing_for_people_counter(count, c)).await;
+        paint_people_counter(appref5, count, c).await;
     });
 }
 
@@ -694,22 +691,7 @@ impl ExactSizeIterator for FloatIterator {
     fn len(&self) -> usize {
         self.usize_len()
     }
-
-    //fn is_empty(&self) -> bool {
-    //    self.length() == 0u32
-    //}
 }
-
-// pub fn main() {
-//     println!(
-//         "count: {}",
-//         FloatIterator::new_with_step(-1.0, 1.0, 0.01).count()
-//     );
-//     for f in FloatIterator::new_with_step(-1.0, 1.0, 0.01) {
-//         println!("{}", f);
-//     }
-// }
-/////////////////////////////////////////
 
 fn top_bar(c: drawing::Color) -> Drawing {
     let (start, end): (usize, usize) = (1, CANVAS_REGION.width.try_into().unwrap());
@@ -725,31 +707,8 @@ fn top_bar(c: drawing::Color) -> Drawing {
 }
 
 fn dots(start: f32, end: f32, steps: f32) -> Vec<f32> {
-    //     (start..end).into_iter().map(|i| i as f32 * steps).collect()
     FloatIterator::new_with_step(start, end, steps).collect()
 }
-
-// fn dots_svg(start: (f32, f32), end: (f32, f32)) -> Drawing {
-//     let steps = 8.;
-//     // let mut xs = dots(100. + end.0 / 100., 400. + start.0, steps);
-//     // let mut ys = dots(400. + start.1, 100. + end.1 / 100., steps);
-//     let mut xs: Vec<f32> = FloatIterator::new_with_step(start.0, end.0, steps).collect();
-//     let mut ys: Vec<f32> = FloatIterator::new_with_step(start.1, end.1, steps).collect();
-//     let xcount = xs.len();
-//     assert_ne!(xcount, 0);
-//     match ys.len() {
-//         ycount if xcount < ycount => ys = ys[..xcount].to_vec(),
-//         ycount if xcount > ycount => xs = xs[..ycount].to_vec(),
-//         _ => (),
-//     }
-//     Drawing {
-//         xs,
-//         ys,
-//         pressures: vec![3992 / 2; xcount],
-//         widths: vec![2; xcount],
-//         color: drawing::Color::Black.into(),
-//     }
-// }
 
 // https://www.michaelfogleman.com/
 //https://store.michaelfogleman.com/products/elementary-cellular-automata
@@ -762,85 +721,30 @@ fn dots(start: f32, end: f32, steps: f32) -> Vec<f32> {
 //https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
 //https://oeis.org/A088218
 
-async fn paint_svg(app: &mut ApplicationContext<'_>) {
-    info!("[main] paint_svg?");
-
-    // https://wiki.evilmadscientist.com/Hershey_Text
-    // https://github.com/ax3l/lines-are-beautiful/blob/55696bc76a6d162f96eb650df400aec3bd1b1b1e/include/rmlab/renderer/lines2svg.cpp#L32
-    // https://github.com/rorycl/rm2pdf/blob/d690ca0ea3086e4b3f14a1cb698b69e5d41c8288/rmparse/rmparse_test.go#L38
-    // https://gitlab.com/oskay/svg-fonts/-/blob/9124c64cbdcadd50931ecfc727ab33ac2a5cf679/fonts/EMS/EMSCasualHand.svg
-
-    // <glyph unicode="/" glyph-name="slash" horiz-adv-x="290" d="M 81.9 -59.9 L 299 1083.6" />
-
-    // <glyph unicode="@" glyph-name="at" horiz-adv-x="876" d="M 469 466 L 441 498 L 372 479 L 277 387 L 230 293 L 239 236 L 280 230 L 359 299 L 403 362 L 457 438 L 447 318 L 488 246 L 561 255 L 589 306 L 602 463 L 586 646 L 545 731 L 482 756 L 403 737 L 249 580 L 139 387 L 81.9 214 L 126 88.2 L 249 9.45 L 428 9.45 L 740 145 L 835 198 L 885 246" />
-
-    // <glyph unicode="1" glyph-name="one" horiz-adv-x="129" d="M 88.2 22.1 L 81.9 318 L 110 646" />
-    // let digit: Vec<(f32, f32)> = vec![(88.2, 22.1), (81.9, 318.), (110., 646.)];
-
-    // <glyph unicode="2" glyph-name="two" horiz-adv-x="532" d="M 91.4 394 L 101 397 L 220 498 L 312 545 L 356 542 L 372 476 L 337 331 L 268 183 L 170 28.4 L 318 94.5 L 444 154 L 539 173" />
-    // let digit: Vec<(f32, f32)> = vec![
-    //     (91.4, 394.),
-    //     (101., 397.),
-    //     (220., 498.),
-    //     (312., 545.),
-    //     (356., 542.),
-    //     (372., 476.),
-    //     (337., 331.),
-    //     (268., 183.),
-    //     (170., 28.4),
-    //     (318., 94.5),
-    //     (444., 154.),
-    //     (539., 173.),
-    // ];
-
-    // <glyph unicode="3" glyph-name="three" horiz-adv-x="447" d="M 252 15.8 L 287 12.6 L 391 97.7 L 435 233 L 419 340 L 324 369 L 180 299 L 151 296 L 173 343 L 312 542 L 343 595 L 318 614 L 180 570 L 66.1 507" />
-    let digit: Vec<(f32, f32)> = vec![
-        (252., 15.8),
-        (287., 12.6),
-        (391., 97.7),
-        (435., 233.),
-        (419., 340.),
-        (324., 369.),
-        (180., 299.),
-        (151., 296.),
-        (173., 343.),
-        (312., 542.),
-        (343., 595.),
-        (318., 614.),
-        (180., 570.),
-        (66.1, 507.),
-    ];
-
-    info!(">>> digit = {:?}", digit);
-    let digit_drawing: Vec<Drawing> = digit
-        .into_iter()
-        .tuple_windows()
-        .map(|((xa, ya), (xb, yb))| {
-            info!(">>> (({:?}, {:?}), ({:?}, {:?}))", xa, ya, xb, yb);
-            let (x0, y0, k) = (-200., -400., 0.25);
-            Drawing {
+async fn paint_glyph(
+    app: &mut ApplicationContext<'_>,
+    glyph: &Vec<Vec<(f32, f32)>>,
+    c0k: (f32, f32, f32),
+    p: i32,
+    w: u32,
+    c: drawing::Color,
+) {
+    let (x0, y0, k) = c0k;
+    for (i, path) in glyph.iter().enumerate() {
+        if i != 0 {
+            delay_for(INTER_DRAWING_PACE).await;
+        }
+        let drawing: Vec<Drawing> = path
+            .into_iter()
+            .tuple_windows()
+            .map(|((xa, ya), (xb, yb))| Drawing {
                 xs: vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)],
                 ys: vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)],
-                pressures: vec![3992 / 2; 3],
-                widths: vec![2; 3],
-                color: drawing::Color::Black.into(),
-            }
-        })
-        .collect();
-    info!(">>> digit_drawing = {:?}", digit_drawing);
-    paint_vec(app, digit_drawing).await;
-
-    // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d
-    // <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    //   <path fill="none" stroke="red"
-    //     d="M 10,30
-    //        A 20,20 0,0,1 50,30
-    //        A 20,20 0,0,1 90,30
-    //        Q 90,60 50,90
-    //        Q 10,60 10,30 z" />
-    // </svg>
-    // let xs: Vec<f32> = vec![10, 20, 50, 20, 90, 90, 50, 10, 10];
-    // let ys: Vec<f32> = vec![30, 20, 30, 60, ];
-
-    info!("[main] paint_svg!");
+                pressures: vec![p; 3],
+                widths: vec![w; 3],
+                color: c.into(),
+            })
+            .collect();
+        paint_vec(app, drawing).await;
+    }
 }
