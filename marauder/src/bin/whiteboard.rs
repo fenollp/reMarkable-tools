@@ -377,7 +377,7 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             info!(">>> pressed left button");
         }
         gpio::PhysicalButton::MIDDLE => {
-            app.clear(btn == gpio::PhysicalButton::MIDDLE);
+            app.clear(true);
             app.draw_elements();
 
             let appref = app.upgrade_ref();
