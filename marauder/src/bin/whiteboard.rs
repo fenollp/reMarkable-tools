@@ -606,96 +606,12 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     });
 }
 
-/////////////////////////////////////////
-//https://stackoverflow.com/a/47869373/1418165
-/// produces: [ linear_interpol(start, end, i/steps) | i <- 0..steps ]
-/// (does NOT include "end")
-///
-/// linear_interpol(a, b, p) = (1 - p) * a + p * b
-pub struct FloatIterator {
-    current: u32,
-    current_back: u32,
-    steps: u32,
-    start: f32,
-    end: f32,
-}
-
-impl FloatIterator {
-    pub fn new(start: f32, end: f32, steps: u32) -> Self {
-        FloatIterator {
-            current: 0,
-            current_back: steps,
-            steps,
-            start,
-            end,
-        }
-    }
-
-    /// calculates number of steps from (end - start) / step
-    pub fn new_with_step(start: f32, end: f32, step: f32) -> Self {
-        let steps = ((end - start) / step).abs().round() as u32;
-        Self::new(start, end, steps)
-    }
-
-    pub fn length(&self) -> u32 {
-        self.current_back - self.current
-    }
-
-    fn at(&self, pos: u32) -> f32 {
-        let f_pos = pos as f32 / self.steps as f32;
-        (1. - f_pos) * self.start + f_pos * self.end
-    }
-
-    /// panics (in debug) when len doesn't fit in usize
-    fn usize_len(&self) -> usize {
-        let l = self.length();
-        debug_assert!(l <= ::std::usize::MAX as u32);
-        l as usize
-    }
-}
-
-impl Iterator for FloatIterator {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.current_back {
-            return None;
-        }
-        let result = self.at(self.current);
-        self.current += 1;
-        Some(result)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let l = self.usize_len();
-        (l, Some(l))
-    }
-
-    fn count(self) -> usize {
-        self.usize_len()
-    }
-}
-
-impl DoubleEndedIterator for FloatIterator {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.current >= self.current_back {
-            return None;
-        }
-        self.current_back -= 1;
-        let result = self.at(self.current_back);
-        Some(result)
-    }
-}
-
-impl ExactSizeIterator for FloatIterator {
-    fn len(&self) -> usize {
-        self.usize_len()
-    }
-}
-
 fn top_bar(c: drawing::Color) -> Drawing {
-    let (start, end): (usize, usize) = (1, CANVAS_REGION.width.try_into().unwrap());
-    let xs = dots(start as f32, end as f32, 8.0);
+    let max_x: u32 = CANVAS_REGION.width;
+    let mut xs: Vec<f32> = Vec::with_capacity(max_x.try_into().unwrap());
+    for i in 1..xs.capacity() {
+        xs.push(i as f32);
+    }
     let count = xs.len();
     Drawing {
         xs,
@@ -705,21 +621,6 @@ fn top_bar(c: drawing::Color) -> Drawing {
         color: c as i32,
     }
 }
-
-fn dots(start: f32, end: f32, steps: f32) -> Vec<f32> {
-    FloatIterator::new_with_step(start, end, steps).collect()
-}
-
-// https://www.michaelfogleman.com/
-//https://store.michaelfogleman.com/products/elementary-cellular-automata
-//https://github.com/fogleman/ribbon
-//https://github.com/fogleman/terrarium
-//https://github.com/fogleman/Tiling
-//https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
-/////////////https://github.com/fogleman/ln
-//https://en.wikipedia.org/wiki/Turtle_graphics
-//https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
-//https://oeis.org/A088218
 
 async fn paint_glyph(
     app: &mut ApplicationContext<'_>,
@@ -737,12 +638,17 @@ async fn paint_glyph(
         let drawing: Vec<Drawing> = path
             .into_iter()
             .tuple_windows()
-            .map(|((xa, ya), (xb, yb))| Drawing {
-                xs: vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)],
-                ys: vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)],
-                pressures: vec![p; 3],
-                widths: vec![w; 3],
-                color: c.into(),
+            .map(|((xa, ya), (xb, yb))| {
+                let xs = vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)];
+                let ys = vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)];
+                let points_count = xs.len();
+                Drawing {
+                    xs,
+                    ys,
+                    pressures: vec![p; points_count],
+                    widths: vec![w; points_count],
+                    color: c.into(),
+                }
             })
             .collect();
         paint_vec(app, drawing).await;

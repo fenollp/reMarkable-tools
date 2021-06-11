@@ -168,3 +168,14 @@ https://news.ycombinator.com/item?id=27224094
 https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/
 https://www.jaided.ai/easyocr/
 https://3dlg-hcvc.github.io/plan2scene/
+
+
+https://store.michaelfogleman.com/products/elementary-cellular-automata
+https://github.com/fogleman/ribbon
+https://github.com/fogleman/terrarium
+https://github.com/fogleman/Tiling
+https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
+https://github.com/fogleman/ln
+https://en.wikipedia.org/wiki/Turtle_graphics
+https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
+https://oeis.org/A088218
