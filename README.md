@@ -156,3 +156,26 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
     * [Free-hand sketch synthesis with deformable stroke models](https://panly099.github.io/skSyn.html)
     * [Convert images to vectorized line drawings for plotters.](https://github.com/LingDong-/linedraw)
 * [Draw.io and Terraform = Brainboard, Graphical Way to Do Terraform](https://news.ycombinator.com/item?id=25536133)
+
+https://github.com/cod-ed/handwrite
+http://potrace.sourceforge.net/
+[21, Im2Vec: Synthesizing Vector Graphics without Vector Supervision](https://arxiv.org/abs/2102.02798v1)
+
+[Tally marks (from around the world) as battery bar](https://i.redd.it/qgr5kte3gak51.jpg)
+
+https://github.com/javierbyte/pintr
+https://news.ycombinator.com/item?id=27224094
+https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/
+https://www.jaided.ai/easyocr/
+https://3dlg-hcvc.github.io/plan2scene/
+
+
+https://store.michaelfogleman.com/products/elementary-cellular-automata
+https://github.com/fogleman/ribbon
+https://github.com/fogleman/terrarium
+https://github.com/fogleman/Tiling
+https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
+https://github.com/fogleman/ln
+https://en.wikipedia.org/wiki/Turtle_graphics
+https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
+https://oeis.org/A088218

@@ -8,12 +8,12 @@ edition = "2018"
 lto = "thin" # "fat" xor "thin". "thin" is faster but crashes on some binaries
 
 [dependencies]
-atomic = { version = "^0", features = ["nightly"] }
+atomic = "^0"
 chrono = "^0"
 env_logger = "^0"
 itertools = "^0"
 lazy_static = "^1"
-libremarkable = { git = "https://github.com/canselcik/libremarkable" }
+libremarkable = "^0"
 log = "^0"
 nom = "5"
 rand = "^0"
@@ -29,6 +29,8 @@ serde_json = "1.0"
 
 docopt = "1"
 uuid = { version = "0.8", features = ["v4"] }
+
+quick-xml = { version = "0.22", features = ["serialize"] }
 
 [build-dependencies]
 tonic-build = "0.3"

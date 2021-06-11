@@ -1,4 +1,5 @@
 use docopt::Docopt;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
@@ -10,12 +11,12 @@ use libremarkable::framebuffer::FramebufferRefresh;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
-use libremarkable::input::InputDevice;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use log::{debug, error, info, warn};
 use marauder::drawings;
+use marauder::fonts;
 use marauder::modes::draw::DrawMode;
 use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
 use marauder::proto::whiteboard::{drawing, event};
@@ -29,6 +30,8 @@ use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
 use std::time::Duration;
+use tokio::spawn;
+use tokio::task::spawn_blocking;
 use tokio::time::delay_for;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
@@ -62,6 +65,15 @@ struct Ctx {
     user_id: String,
 }
 
+#[derive(Debug)]
+struct Scribble {
+    color: color,
+    mult: u32,
+    pos_x: f32,
+    pos_y: f32,
+    pressure: i32,
+}
+
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: 2 + 70,
     left: 0,
@@ -75,8 +87,9 @@ lazy_static! {
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
     static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
         Mutex::new(VecDeque::new());
-    static ref STROKES: Mutex<Vec<(color, u32, f32, f32, i32)>> = Mutex::new(Vec::new());
+    static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
+    static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -123,7 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.draw_elements();
 
     let appref0 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_mouldings(appref0).await;
     });
 
@@ -138,20 +151,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let appref = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
-    tokio::task::spawn_blocking(move || {
-        //TODO: PR to allow async in spawn_blocking
-        let rt_handle = tokio::runtime::Handle::current();
-        rt_handle.block_on(async move {
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop_recv(appref, ch2, ctx2).await;
             info!("[loop_recv] terminated");
-        });
+        })
     });
 
     info!("[TXer] spawn-ing");
-    tokio::task::spawn_blocking(move || {
-        let rt_handle = tokio::runtime::Handle::current();
-        rt_handle.block_on(async move {
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
             info!("[TXer] spawn-ed");
             let (tx, rx) = std::sync::mpsc::channel();
             //TODO: let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -171,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
                 }
             }
-        });
+        })
     });
 
     info!("Init complete. Beginning event dispatch...");
@@ -207,8 +217,14 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
             let (col, mult) = (color::BLACK, DrawMode::default().get_size());
 
             {
-                let mut strokes = STROKES.lock().unwrap();
-                strokes.push((col, mult, position.x, position.y, pressure as i32));
+                let mut scribbles = SCRIBBLES.lock().unwrap();
+                scribbles.push(Scribble {
+                    color: col,
+                    mult,
+                    pos_x: position.x,
+                    pos_y: position.y,
+                    pressure: pressure as i32,
+                });
             }
 
             wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
@@ -288,30 +304,26 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
 }
 
 fn maybe_send_drawing() {
-    let mut strokes = STROKES.lock().unwrap();
-    let len = strokes.len();
+    let mut scribbles = SCRIBBLES.lock().unwrap();
+    let len = scribbles.len();
     if len < 3 {
         return;
     }
-    debug!("strokes.len() = {:?}", len);
+    debug!("scribbles.len() = {:?}", len);
 
-    let mut ws = Vec::<u32>::new();
-    let mut xs = Vec::<f32>::new();
-    let mut ys = Vec::<f32>::new();
-    let mut ps = Vec::<i32>::new();
-    ws.reserve(len);
-    xs.reserve(len);
-    ys.reserve(len);
-    ps.reserve(len);
+    let mut ws = Vec::<u32>::with_capacity(len);
+    let mut xs = Vec::<f32>::with_capacity(len);
+    let mut ys = Vec::<f32>::with_capacity(len);
+    let mut ps = Vec::<i32>::with_capacity(len);
     for i in 0..len {
-        let dot = strokes[i];
-        ws.push(dot.1);
-        xs.push(dot.2);
-        ys.push(dot.3);
-        ps.push(dot.4);
+        let scribble = &scribbles[i];
+        ws.push(scribble.mult);
+        xs.push(scribble.pos_x);
+        ys.push(scribble.pos_y);
+        ps.push(scribble.pressure);
     }
 
-    let col = match strokes[0].0 {
+    let col = match scribbles[0].color {
         color::WHITE => drawing::Color::White,
         _ => drawing::Color::Black,
     };
@@ -332,7 +344,7 @@ fn maybe_send_drawing() {
         e => error!("e = {:?}", e),
     };
     debug!("unlocked TX");
-    strokes.clear();
+    scribbles.clear();
 }
 
 fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
@@ -358,21 +370,20 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
 
     match btn {
         gpio::PhysicalButton::RIGHT => {
-            if app.is_input_device_active(InputDevice::Multitouch) {
-                app.deactivate_input_device(InputDevice::Multitouch);
-            }
+            info!(">>> pressed right button");
         }
-        gpio::PhysicalButton::MIDDLE | gpio::PhysicalButton::LEFT => {
-            app.clear(btn == gpio::PhysicalButton::MIDDLE);
+        gpio::PhysicalButton::LEFT => {
+            info!(">>> pressed left button");
+        }
+        gpio::PhysicalButton::MIDDLE => {
+            app.clear(true);
             app.draw_elements();
 
             let appref = app.upgrade_ref();
-            // TODO: make libremarkable async
-            tokio::task::spawn_blocking(move || {
-                let rt_handle = tokio::runtime::Handle::current();
-                rt_handle.block_on(async move {
+            spawn_blocking(move || {
+                tokio::runtime::Handle::current().block_on(async move {
                     paint_mouldings(appref).await;
-                });
+                })
             });
         }
         gpio::PhysicalButton::POWER => {
@@ -450,6 +461,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
         _ => color::BLACK,
     };
     let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
+    assert!(xs.len() >= 3);
     for i in 0..(xs.len() - 2) {
         if i != 0 {
             delay_for(DRAWING_PACE).await;
@@ -529,29 +541,30 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
     info!("REP = {:?}", rep);
 }
 
-fn drawing_for_people_counter(c: u32, color: drawing::Color) -> Vec<Drawing> {
-    match c {
-        0 => drawings::top_right_0::f(color),
-        1 => drawings::top_right_1::f(color),
-        2 => drawings::top_right_2::f(color),
-        3 => drawings::top_right_3::f(color),
-        4 => drawings::top_right_4::f(color),
-        5 => drawings::top_right_5::f(color),
-        6 => drawings::top_right_6::f(color),
-        7 => drawings::top_right_7::f(color),
-        8 => drawings::top_right_8::f(color),
-        9 => drawings::top_right_9::f(color),
+async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: drawing::Color) {
+    let digit = match count {
+        0 => FONT.get("0").unwrap(),
+        1 => FONT.get("1").unwrap(),
+        2 => FONT.get("2").unwrap(),
+        3 => FONT.get("3").unwrap(),
+        4 => FONT.get("4").unwrap(),
+        5 => FONT.get("5").unwrap(),
+        6 => FONT.get("6").unwrap(),
+        7 => FONT.get("7").unwrap(),
+        8 => FONT.get("8").unwrap(),
+        9 => FONT.get("9").unwrap(),
         _ => {
-            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", c);
-            drawings::top_right_9::f(color)
+            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", count);
+            FONT.get("9").unwrap()
         }
-    }
+    };
+
+    paint_glyph(app, digit, (-15000., -150., 0.085), 3992, 3, color).await;
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
-    let len = xs.len();
     for (i, x) in xs.into_iter().enumerate() {
-        if i != 0 && i != len {
+        if i != 0 {
             delay_for(INTER_DRAWING_PACE).await;
         }
         paint(app, x).await;
@@ -559,8 +572,8 @@ async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
 }
 
 async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32) {
-    paint_vec(app, drawing_for_people_counter(o, drawing::Color::White)).await;
-    paint_vec(app, drawing_for_people_counter(n, drawing::Color::Black)).await;
+    paint_people_counter(app, o, drawing::Color::White).await;
+    paint_people_counter(app, n, drawing::Color::Black).await;
     paint(app, top_bar(drawing::Color::Black)).await;
 }
 
@@ -570,40 +583,73 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     paint_vec(app, drawings::title_whiteboard::f(c)).await;
     delay_for(INTER_DRAWING_PACE).await;
     let appref1 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint(appref1, top_bar(c)).await;
     });
     let appref2 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref2, drawings::top_left_help::f(c)).await;
     });
     let appref3 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
     });
     let appref4 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         paint_vec(appref4, drawings::top_left_x3::f(c)).await;
     });
     let appref5 = app.upgrade_ref();
-    tokio::spawn(async move {
+    spawn(async move {
         let count = PEOPLE_COUNT.load(Ordering::Relaxed);
-        paint_vec(appref5, drawing_for_people_counter(count, c)).await;
+        paint_people_counter(appref5, count, c).await;
     });
 }
 
 fn top_bar(c: drawing::Color) -> Drawing {
-    let (start, end): (usize, usize) = (1, CANVAS_REGION.width.try_into().unwrap());
-    let count = (end - start + 1) / 2;
+    let max_x: u32 = CANVAS_REGION.width;
+    let mut xs: Vec<f32> = Vec::with_capacity(max_x.try_into().unwrap());
+    for i in 1..xs.capacity() {
+        xs.push(i as f32);
+    }
+    let count = xs.len();
     Drawing {
-        xs: (start..end)
-            .into_iter()
-            .step_by(2)
-            .map(|x| x as f32)
-            .collect(),
+        xs,
         ys: vec![70.444; count],
         pressures: vec![3992; count],
         widths: vec![2; count],
         color: c as i32,
+    }
+}
+
+async fn paint_glyph(
+    app: &mut ApplicationContext<'_>,
+    glyph: &[Vec<(f32, f32)>],
+    c0k: (f32, f32, f32),
+    p: i32,
+    w: u32,
+    c: drawing::Color,
+) {
+    let (x0, y0, k) = c0k;
+    for (i, path) in glyph.iter().enumerate() {
+        if i != 0 {
+            delay_for(INTER_DRAWING_PACE).await;
+        }
+        let drawing: Vec<Drawing> = path
+            .iter()
+            .tuple_windows()
+            .map(|((xa, ya), (xb, yb))| {
+                let xs = vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)];
+                let ys = vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)];
+                let points_count = xs.len();
+                Drawing {
+                    xs,
+                    ys,
+                    pressures: vec![p; points_count],
+                    widths: vec![w; points_count],
+                    color: c.into(),
+                }
+            })
+            .collect();
+        paint_vec(app, drawing).await;
     }
 }
