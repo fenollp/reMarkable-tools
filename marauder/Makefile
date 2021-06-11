@@ -22,13 +22,13 @@ lint: fmt
 	cross clippy --target=$(TARGET) #-- -W clippy::pedantic
 
 test: fmt test-ujipenchars2
-	cargo test
+	cargo test --target=$$(rustc -Vv | grep host: | cut -c7-)
 
 ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
 ujipenchars2.txt:
 	curl -fSLo $@ $(url)
 test-ujipenchars2: ujipenchars2.txt
-	cargo run --bin ujipenchars $^
+	cargo run --target=$$(rustc -Vv | grep host: | cut -c7-) --bin ujipenchars $^
 
 update:
 	cargo update
