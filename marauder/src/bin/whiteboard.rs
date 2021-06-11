@@ -16,14 +16,13 @@ use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
 use log::{debug, error, info, warn};
 use marauder::drawings;
-use marauder::fonts::emsdelight_swash_caps;
+use marauder::fonts;
 use marauder::modes::draw::DrawMode;
 use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
 use marauder::proto::whiteboard::{drawing, event};
 use marauder::proto::whiteboard::{Drawing, Event};
 use marauder::proto::whiteboard::{RecvEventsReq, SendEventReq};
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::process::Command;
@@ -90,7 +89,7 @@ lazy_static! {
         Mutex::new(VecDeque::new());
     static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
-    static ref FONT: HashMap<String, Vec<Vec<(f32, f32)>>> = emsdelight_swash_caps().unwrap();
+    static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -560,7 +559,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
         }
     };
 
-    paint_glyph(app, &digit, (-15000., -150., 0.085), 3992, 3, color).await;
+    paint_glyph(app, digit, (-15000., -150., 0.085), 3992, 3, color).await;
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
@@ -624,7 +623,7 @@ fn top_bar(c: drawing::Color) -> Drawing {
 
 async fn paint_glyph(
     app: &mut ApplicationContext<'_>,
-    glyph: &Vec<Vec<(f32, f32)>>,
+    glyph: &[Vec<(f32, f32)>],
     c0k: (f32, f32, f32),
     p: i32,
     w: u32,
@@ -636,7 +635,7 @@ async fn paint_glyph(
             delay_for(INTER_DRAWING_PACE).await;
         }
         let drawing: Vec<Drawing> = path
-            .into_iter()
+            .iter()
             .tuple_windows()
             .map(|((xa, ya), (xb, yb))| {
                 let xs = vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)];

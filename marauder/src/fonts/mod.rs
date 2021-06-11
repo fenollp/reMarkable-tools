@@ -16,11 +16,11 @@ struct Svg {
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Defs {
-    font: Font,
+    font: AFont,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Font {
+struct AFont {
     #[serde(rename = "glyph", default)]
     glyphs: Vec<Glyph>,
 }
@@ -52,7 +52,9 @@ fn vec_of_points(input: &str) -> IResult<&str, Vec<Vec<(f32, f32)>>> {
     separated_nonempty_list(em, points)(input)
 }
 
-pub fn emsdelight_swash_caps() -> Result<HashMap<String, Vec<Vec<(f32, f32)>>>, DeError> {
+pub type Font = HashMap<String, Vec<Vec<(f32, f32)>>>;
+
+pub fn emsdelight_swash_caps() -> Result<Font, DeError> {
     let svg: Svg = from_str(include_str!("./EMSDelightSwashCaps.svg"))?;
     let mut glyphs = HashMap::with_capacity(svg.defs.font.glyphs.len());
     for glyph in &svg.defs.font.glyphs {
@@ -61,10 +63,10 @@ pub fn emsdelight_swash_caps() -> Result<HashMap<String, Vec<Vec<(f32, f32)>>>, 
             // when we should be painting Bezier curves from SVG paths...
             // Anyway let's skip the less basic path instructions (other than M L)
             // c.f. https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
-            if d.contains("C") {
+            if d.contains('C') {
                 continue;
             }
-            let (rest, dd) = vec_of_points(&d).unwrap();
+            let (rest, dd) = vec_of_points(d).unwrap();
             assert_eq!(rest, "");
             glyphs.insert(glyph.unicode.to_owned(), dd);
         }
