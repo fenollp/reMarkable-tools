@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"context"
@@ -50,6 +50,7 @@ func NewLogFromCtx(ctx context.Context) *zap.Logger {
 
 type authOptions struct {
 	noDeadline bool
+	allowAnons bool
 }
 
 func (opts *authOptions) deadline(ctx context.Context, userID string) (
@@ -61,13 +62,16 @@ func (opts *authOptions) deadline(ctx context.Context, userID string) (
 	if !opts.noDeadline {
 		ctx, cancel = context.WithTimeout(ctx, 1*500*time.Millisecond)
 	}
-	ctx = context.WithValue(ctx, uniqueIDKey, userID)
+	if userID != "" {
+		ctx = context.WithValue(ctx, uniqueIDKey, userID)
+	}
 	return ctx, cancel, nil
 }
 
 type authOption func(*authOptions)
 
 func optNoDeadline() authOption { return func(a *authOptions) { a.noDeadline = true } }
+func optAllowAnons() authOption { return func(a *authOptions) { a.allowAnons = true } }
 
 var errForbidden = errors.New("forbidden")
 
@@ -76,6 +80,10 @@ func (srv *Server) prepare(ctx context.Context, fs ...authOption) (context.Conte
 	opts := &authOptions{}
 	for _, f := range fs {
 		f(opts)
+	}
+
+	if opts.allowAnons {
+		return ctx, cancel, nil
 	}
 
 	md, ok := metadata.FromIncomingContext(ctx)

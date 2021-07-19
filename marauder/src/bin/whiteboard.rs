@@ -5,8 +5,11 @@ use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
+use libremarkable::framebuffer::common::{DISPLAYHEIGHT, DISPLAYWIDTH};
 use libremarkable::framebuffer::refresh::PartialRefreshMode;
+use libremarkable::framebuffer::storage;
 use libremarkable::framebuffer::FramebufferDraw;
+use libremarkable::framebuffer::FramebufferIO;
 use libremarkable::framebuffer::FramebufferRefresh;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
@@ -18,10 +21,12 @@ use log::{debug, error, info, warn};
 use marauder::drawings;
 use marauder::fonts;
 use marauder::modes::draw::DrawMode;
-use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
-use marauder::proto::whiteboard::{drawing, event};
-use marauder::proto::whiteboard::{Drawing, Event};
-use marauder::proto::whiteboard::{RecvEventsReq, SendEventReq};
+use marauder::proto::hypercards::screen_sharing_client::ScreenSharingClient;
+use marauder::proto::hypercards::whiteboard_client::WhiteboardClient;
+use marauder::proto::hypercards::SendScreenReq;
+use marauder::proto::hypercards::{drawing, event};
+use marauder::proto::hypercards::{Drawing, Event};
+use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::convert::TryInto;
@@ -135,9 +140,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     app.draw_elements();
 
-    let appref0 = app.upgrade_ref();
+    let appref1 = app.upgrade_ref();
     spawn(async move {
-        paint_mouldings(appref0).await;
+        paint_mouldings(appref1).await;
     });
 
     let host = args.clone().flag_host;
@@ -149,13 +154,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args: args.clone(),
         user_id: user_id.clone(),
     };
-    let appref = app.upgrade_ref();
+    let appref2 = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
-            loop_recv(appref, ch2, ctx2).await;
+            loop_recv(appref2, ch2, ctx2).await;
             info!("[loop_recv] terminated");
+        })
+    });
+
+    let ch3 = ch.clone();
+    let ctx3 = Ctx {
+        args: args.clone(),
+        user_id: user_id.clone(),
+    };
+    let appref3 = app.upgrade_ref();
+    info!("[loop_screensharing] spawn-ing");
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
+            info!("[loop_screensharing] spawn-ed");
+            loop_screensharing(appref3, ch3, ctx3).await;
+            info!("[loop_screensharing] terminated");
         })
     });
 
@@ -403,7 +423,62 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
 fn add_xuser<T>(req: &mut Request<T>, user: String) {
     let user_id = user.parse().unwrap();
     let md = Request::metadata_mut(req);
-    assert!(md.insert("x-user", user_id).is_none());
+    let key = "x-user";
+    assert!(md.get(key).is_none());
+    md.insert(key, user_id);
+}
+
+async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
+    info!("[loop_screensharing] creating client");
+    let mut client = ScreenSharingClient::new(ch);
+    info!("[loop_screensharing] created client");
+
+    loop {
+        delay_for(Duration::from_secs(10)).await;
+        //TODO: skip dump+send if nothing was painted/recvd
+        //TODO: send whole screen not just canvas
+
+        debug!("[loop_screensharing] dumping canvas");
+        let framebuffer = app.get_framebuffer_ref();
+        debug!("[loop_screensharing] got fb");
+        match framebuffer.dump_region(mxcfb_rect {
+            top: 0,
+            left: 0,
+            width: DISPLAYWIDTH as u32,
+            height: DISPLAYHEIGHT.into(),
+        }) {
+            Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
+            Ok(buff) => {
+                debug!("[loop_screensharing] compressing canvas");
+                if let Some(img0) = storage::rgbimage_from_u8_slice(
+                    DISPLAYWIDTH.into(),
+                    DISPLAYHEIGHT.into(),
+                    buff.as_slice(),
+                ) {
+                    let img = image::DynamicImage::ImageRgb8(img0);
+                    let mut enc = Vec::with_capacity(50_000);
+                    match img.write_to(&mut enc, image::ImageOutputFormat::PNG) {
+                        Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
+                        Ok(()) => {
+                            info!("[loop_screensharing] compressed!");
+                            let mut req = Request::new(SendScreenReq {
+                                room_id: ctx.args.flag_room.clone(),
+                                screen_png: enc,
+                            });
+                            add_xuser(&mut req, ctx.user_id.clone());
+
+                            debug!("[loop_screensharing] sending canvas");
+                            let rep = client
+                                .send_screen(req)
+                                .await
+                                .map_err(|e| error!("[loop_screensharing] !send: {:?}", e));
+                            debug!("[loop_screensharing] rep: {:?}", rep);
+                        }
+                    }
+                }
+            }
+        };
+    }
 }
 
 async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {

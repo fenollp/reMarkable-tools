@@ -17,6 +17,7 @@ libremarkable = "^0"
 log = "^0"
 nom = "5"
 rand = "^0"
+image = "0.21.3" # matches libremarkable's
 
 tonic = "0.3"
 prost = "0.6"

@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"context"
@@ -8,11 +8,13 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ WhiteboardServer = &Server{} // Ensures all RPCs are implemented
+var _ WhiteboardServer = &Server{}    // Ensures all RPCs are implemented
+var _ ScreenSharingServer = &Server{} // Ensures all RPCs are implemented
 
 // Server holds connections to our services accessible by gRPC rpcs.
 type Server struct {
 	nc *natsClient
+	rc *redisClient
 }
 
 // Close ...
@@ -24,7 +26,7 @@ func (srv *Server) Close(ctx context.Context) {
 }
 
 // NewServer opens connections to our services
-func NewServer(ctx context.Context) (srv *Server, err error) {
+func NewServer(ctx context.Context, onlyRedis bool) (srv *Server, err error) {
 	log := NewLogFromCtx(ctx)
 	start := time.Now()
 
@@ -32,10 +34,21 @@ func NewServer(ctx context.Context) (srv *Server, err error) {
 
 	// Start server's services here (Redis, RMQ, ...)
 
-	if err = srv.setupNats(ctx,
-		"nats",
-		os.Getenv("NATS_USER"),
-		os.Getenv("NATS_PASS"),
+	if !onlyRedis {
+
+		if err = srv.setupNats(ctx,
+			"nats",
+			os.Getenv("NATS_USER"),
+			os.Getenv("NATS_PASS"),
+		); err != nil {
+			return
+		}
+
+	}
+
+	if err = srv.setupRedis(ctx,
+		os.Getenv("REDIS_HOST"),
+		os.Getenv("REDIS_PORT"),
 	); err != nil {
 		return
 	}

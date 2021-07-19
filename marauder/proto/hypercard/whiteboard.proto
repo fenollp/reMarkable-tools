@@ -1,7 +1,6 @@
 syntax = "proto3";
 
-package hypercard.whiteboard;
-// option go_package = "whiteboard";
+package hypercards;
 
 // import "google/protobuf/empty.proto";
 // import "google/protobuf/wrappers.proto";
@@ -25,6 +24,40 @@ service Whiteboard {
   // ListRoomMembers returns a paginated list of room members.
   rpc ListRoomMembers(ListRoomMembersReq) returns (ListRoomMembersRep) {}
 
+}
+
+// ScreenSharing is a HyperCard that allows sending/receiving screen data.
+// Note: all calls MUST be done with a "user-id" header.
+service ScreenSharing {
+
+  // ScreenSharing streams the compressed canvas every Ns or after each windows of Ns
+  //at the client's initiative
+  rpc SendScreen(SendScreenReq) returns (SendScreenRep) {}
+
+  // RecvScreen gets the last compressed canvas
+  rpc RecvScreen(RecvScreenReq) returns (RecvScreenRep) {}
+
+}
+
+message RecvScreenReq {
+  string room_id = 1; // Called by https://fknwkdacd.com:18888/wb/live/living-room from QRcode scanning at https://fknwkdacd.com:18888/wb/live
+  // string password = 2;
+  // app has room QRcode in toolbar which points to .../live/<room>
+  // change <room> so it stays relatively short so QRcode can be around 2cmx2cm (maybe nah) ah actually r-1 | r | r+1
+  // QRcode must be scannable by phone/laptop/desktop and lead to webpage streaming canvas
+}
+
+message RecvScreenRep {
+  bytes png_canvas = 1;
+}
+
+message SendScreenReq {
+  string room_id = 1; // The room this is from.
+  bytes screen_png = 2; // Whole screenshot, encoded in PNG
+  // string fwd_to_email = 2; // If set, also sends an email /// actually this requires user auth so keep client side.
+}
+
+message SendScreenRep {
 }
 
 message Event {

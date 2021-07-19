@@ -824,6 +824,7 @@ dependencies = [
  "docopt",
  "env_logger 0.8.3",
  "futures",
+ "image",
  "itertools 0.10.0",
  "lazy_static",
  "libremarkable",
