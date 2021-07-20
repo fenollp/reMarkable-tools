@@ -19,8 +19,6 @@ func init() {
 	hypercards.MustSetupLogging()
 }
 
-const base = "/reMarkable-tools/ScreenSharing"
-
 func main() {
 	ctx := context.Background()
 	log := hypercards.NewLogFromCtx(ctx)
@@ -34,9 +32,10 @@ func main() {
 	log.Info("starting HTTP server", zap.String("port", port))
 
 	router := mux.NewRouter()
+	sr := router.PathPrefix(os.Getenv("PATH_PREFIX")).Subrouter()
 
 	// HTML page embedding image
-	router.HandleFunc(base+"/{roomID}/", func(w http.ResponseWriter, r *http.Request) {
+	sr.HandleFunc("/{roomID}/", func(w http.ResponseWriter, r *http.Request) {
 		log.Info(logReq(r))
 		log.Info("rendering page", zap.Any("vars", mux.Vars(r)))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -44,7 +43,7 @@ func main() {
 	})
 
 	// Image
-	router.HandleFunc(base+"/{roomID}/image.png", func(w http.ResponseWriter, r *http.Request) {
+	sr.HandleFunc("/{roomID}/s.png", func(w http.ResponseWriter, r *http.Request) {
 		log.Info(logReq(r))
 		vars := mux.Vars(r)
 		roomID := vars["roomID"]
@@ -56,6 +55,7 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "image/png; charset=utf-8")
+		// From https://stackoverflow.com/a/2068407/1418165
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
@@ -113,12 +113,12 @@ const index = `
 		<script type="text/javascript">
 			setInterval(function() {
 				var node = document.getElementById('view');
-				node.src = './image.png?nocache=' + Math.random();
+				node.src = './s.png?nocache=' + Math.random();
 			}, 1000);
 		</script>
 	</head>
 	<body>
-		<div><img id="view" src="./image.png" alt="reMarkable whiteboard screen"/></div>
+		<div><img id="view" src="./s.png" alt="reMarkable whiteboard screen"/></div>
 		<!-- <br/><p>Find out more <a href="https://github.com/fenollp/reMarkable-tools">on GitHub</a></p> -->
 	</body>
 </html>

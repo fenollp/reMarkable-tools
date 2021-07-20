@@ -44,6 +44,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: '18888'
+      PATH_PREFIX: /s
       REDIS_HOST: *REDIS_HOST
       REDIS_PORT: *REDIS_PORT
     ports:
