@@ -29,7 +29,7 @@ func (srv *Server) SendScreen(ctx context.Context, req *SendScreenReq) (rep *Sen
 		return
 	}
 	log := NewLogFromCtx(ctx)
-	log.Info("handling RecvScreen")
+	log.Info("handling SendScreen")
 	start := time.Now()
 
 	if !srv.validateSendScreen(ctx, req) {

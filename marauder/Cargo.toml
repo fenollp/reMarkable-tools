@@ -33,5 +33,7 @@ uuid = { version = "0.8", features = ["v4"] }
 
 quick-xml = { version = "0.22", features = ["serialize"] }
 
+crc-any = { version = "2.3.12", default-features = false, features = ["heapless"] }
+
 [build-dependencies]
 tonic-build = "0.3"

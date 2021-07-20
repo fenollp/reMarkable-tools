@@ -1,3 +1,4 @@
+use crc_any::CRC;
 use docopt::Docopt;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -437,6 +438,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: 
     let mut client = ScreenSharingClient::new(ch);
     info!("[loop_screensharing] created client");
 
+    let mut previous_checksum: u64 = 0;
     let (mut failsafe, wrapat) = (0, 10);
     loop {
         delay_for(Duration::from_millis(500)).await;
@@ -456,6 +458,14 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: 
         match framebuffer.dump_region(roi) {
             Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
             Ok(buff) => {
+                let mut crc32 = CRC::crc32();
+                crc32.digest(&buff);
+                let new_checksum = crc32.get_crc();
+                if new_checksum == previous_checksum {
+                    NEEDS_SHARING.store(false, Ordering::Relaxed);
+                    continue;
+                }
+                previous_checksum = new_checksum;
                 debug!("[loop_screensharing] compressing canvas");
                 if let Some(img0) =
                     storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
