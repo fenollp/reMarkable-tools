@@ -80,10 +80,10 @@ struct Scribble {
 }
 
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-    top: 2 + 70,
+    top: 2 + 70, // TODO: make the top bar ~140
     left: 0,
-    height: 1900,
-    width: 1404,
+    height: DISPLAYHEIGHT as u32 - (2 + 70),
+    width: DISPLAYWIDTH as u32,
 };
 
 lazy_static! {
@@ -689,7 +689,7 @@ fn top_bar(c: drawing::Color) -> Drawing {
     let count = xs.len();
     Drawing {
         xs,
-        ys: vec![70.444; count],
+        ys: vec![CANVAS_REGION.top as f32; count],
         pressures: vec![3992; count],
         widths: vec![2; count],
         color: c as i32,

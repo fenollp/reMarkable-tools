@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"os"
@@ -34,30 +33,14 @@ func main() {
 	port := ":" + os.Getenv("PORT")
 	log.Info("starting HTTP server", zap.String("port", port))
 
-	tpl, err := template.New("index").Parse(index)
-	if err != nil {
-		panic(err)
-	}
-
 	router := mux.NewRouter()
 
 	// HTML page embedding image
 	router.HandleFunc(base+"/{roomID}/", func(w http.ResponseWriter, r *http.Request) {
 		log.Info(logReq(r))
-		vars := mux.Vars(r)
-		imagePath := base + "/" + vars["roomID"] + "/image.png"
-		log.Info("rendering page", zap.String("embedding", imagePath))
+		log.Info("rendering page", zap.Any("vars", mux.Vars(r)))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		data := struct {
-			Path string
-		}{
-			Path: imagePath,
-		}
-		if err = tpl.Execute(w, data); err != nil {
-			log.Error("", zap.Error(err))
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		fmt.Fprint(w, index)
 	})
 
 	// Image
@@ -73,6 +56,9 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "image/png; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		data := rep.GetPngCanvas()
 		io.CopyN(w, bytes.NewReader(data), int64(len(data)))
 	})
@@ -111,23 +97,29 @@ const index = `
 		<title>reMarkable-tools · Live View HyperCard</title>
 		<style type="text/css">
 			#view {
-				margin: 10px auto 10px;
-				display: block;
+			    max-width: 100%;
+			    max-height: 100%;
+			    bottom: 0;
+			    left: 0;
+			    margin: auto;
+			    overflow: auto;
+			    position: fixed;
+			    right: 0;
+			    top: 0;
+			    -o-object-fit: contain;
+			    object-fit: contain;
 			}
 		</style>
 		<script type="text/javascript">
 			setInterval(function() {
 				var node = document.getElementById('view');
-				node.src = '{{ .Path }}?nocache=' + Math.random();
-			}, 5000);
+				node.src = './image.png';
+			}, 1000);
 		</script>
 	</head>
 	<body>
-		<div>
-			<img id="view" src="{{ .Path }}" alt="reMarkable whiteboard screen"/>
-		</div>
-		<br/>
-		<p>Find out more <a href="https://github.com/fenollp/reMarkable-tools">on GitHub</a></p>
+		<div><img id="view" src="./image.png" alt="reMarkable whiteboard screen"/></div>
+		<!-- <br/><p>Find out more <a href="https://github.com/fenollp/reMarkable-tools">on GitHub</a></p> -->
 	</body>
 </html>
 `
