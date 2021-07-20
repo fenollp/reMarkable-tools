@@ -113,7 +113,7 @@ const index = `
 		<script type="text/javascript">
 			setInterval(function() {
 				var node = document.getElementById('view');
-				node.src = './image.png';
+				node.src = './image.png?nocache=' + Math.random();
 			}, 1000);
 		</script>
 	</head>

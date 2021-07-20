@@ -95,6 +95,7 @@ lazy_static! {
     static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
     static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
+    static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -197,8 +198,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let rcvd = rx.recv();
                 debug!("[TXer] FWDing...");
                 match rcvd {
-                    Ok(drawing) => send_drawing(&mut client, drawing, &ctx).await,
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+                    Ok(drawing) => {
+                        send_drawing(&mut client, drawing, &ctx).await;
+                        NEEDS_SHARING.store(true, Ordering::Relaxed);
+                    }
                 }
             }
         })
@@ -433,46 +437,49 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: 
     let mut client = ScreenSharingClient::new(ch);
     info!("[loop_screensharing] created client");
 
+    let (mut failsafe, wrapat) = (0, 10);
     loop {
-        delay_for(Duration::from_secs(10)).await;
-        //TODO: skip dump+send if nothing was painted/recvd
-        //TODO: send whole screen not just canvas
+        delay_for(Duration::from_millis(500)).await;
+
+        failsafe += 1;
+        let wrapped = failsafe == wrapat;
+        if wrapped {
+            failsafe = 0;
+        }
+        if !(wrapped || NEEDS_SHARING.load(Ordering::Relaxed)) {
+            continue;
+        }
 
         debug!("[loop_screensharing] dumping canvas");
         let framebuffer = app.get_framebuffer_ref();
-        debug!("[loop_screensharing] got fb");
-        match framebuffer.dump_region(mxcfb_rect {
-            top: 0,
-            left: 0,
-            width: DISPLAYWIDTH as u32,
-            height: DISPLAYHEIGHT.into(),
-        }) {
+        let roi = CANVAS_REGION;
+        match framebuffer.dump_region(roi) {
             Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
             Ok(buff) => {
                 debug!("[loop_screensharing] compressing canvas");
-                if let Some(img0) = storage::rgbimage_from_u8_slice(
-                    DISPLAYWIDTH.into(),
-                    DISPLAYHEIGHT.into(),
-                    buff.as_slice(),
-                ) {
+                if let Some(img0) =
+                    storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
+                {
                     let img = image::DynamicImage::ImageRgb8(img0);
-                    let mut enc = Vec::with_capacity(50_000);
-                    match img.write_to(&mut enc, image::ImageOutputFormat::PNG) {
+                    let mut compressed = Vec::with_capacity(50_000);
+                    match img.write_to(&mut compressed, image::ImageOutputFormat::PNG) {
                         Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
                         Ok(()) => {
                             info!("[loop_screensharing] compressed!");
+                            let bytes = compressed.len();
                             let mut req = Request::new(SendScreenReq {
                                 room_id: ctx.args.flag_room.clone(),
-                                screen_png: enc,
+                                screen_png: compressed,
                             });
                             add_xuser(&mut req, ctx.user_id.clone());
-
                             debug!("[loop_screensharing] sending canvas");
-                            let rep = client
-                                .send_screen(req)
-                                .await
-                                .map_err(|e| error!("[loop_screensharing] !send: {:?}", e));
-                            debug!("[loop_screensharing] rep: {:?}", rep);
+                            match client.send_screen(req).await {
+                                Err(err) => error!("[loop_screensharing] !send: {:?}", err),
+                                Ok(_) => {
+                                    NEEDS_SHARING.store(false, Ordering::Relaxed);
+                                    debug!("[loop_screensharing] sent {} bytes", bytes);
+                                }
+                            }
                         }
                     }
                 }
@@ -506,6 +513,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     debug!("[loop_recv] drawing {:?} points", len - 2);
                     paint(app, drawing).await;
                     info!("[loop_recv] painted");
+                    NEEDS_SHARING.store(true, Ordering::Relaxed);
                 }
                 Some(event::Event::UsersInTheRoom(c)) => {
                     let old = PEOPLE_COUNT.swap(c, Ordering::Relaxed);
@@ -689,7 +697,7 @@ fn top_bar(c: drawing::Color) -> Drawing {
     let count = xs.len();
     Drawing {
         xs,
-        ys: vec![CANVAS_REGION.top as f32; count],
+        ys: vec![CANVAS_REGION.top as f32 - 2.; count],
         pressures: vec![3992; count],
         widths: vec![2; count],
         color: c as i32,
