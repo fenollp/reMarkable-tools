@@ -50,21 +50,24 @@ const USAGE: &str = "
 reMarkable whiteboard HyperCard.
 
 Usage:
-  whiteboard [--room=<ROOM>] [--host=<HOST>]
+  whiteboard [--room=<ROOM>] [--host=<HOST>] [--webhost=<WEBHOST>]
   whiteboard (-h | --help)
   whiteboard --version
 
 Options:
-  --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
-  --room=<ROOM>  Room to join [default: living-room].
-  -h --help      Show this screen.
-  --version      Show version.
+  --host=<HOST>        gRPC server to connect to [default: http://fknwkdacd.com:10000].
+  --room=<ROOM>        Room to join [default: living-room].
+  --webhost=<WEBHOST>  Screen sharing HTTP server [default: http://fknwkdacd.com:18888/s].
+  -h --help            Show this screen.
+  --version            Show version.
 ";
 
 #[derive(Debug, Deserialize, Clone)]
 struct Args {
     flag_host: String,
     flag_room: String,
+    flag_webhost: String,
+    // TODO: here try user_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -704,9 +707,8 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     });
     let appref6 = app.upgrade_ref();
     spawn(async move {
-        let web_host = "http://192.168.1.20:18888/s";
-        let room_id = "living-room";
-        let url = web_host.to_owned() + "/" + room_id + "/";
+        let webhost = CTX.read().unwrap().args.flag_webhost.clone();
+        let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
         debug!("[qrcode] generating");
         let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 128).unwrap();
         debug!("[qrcode] loading");
