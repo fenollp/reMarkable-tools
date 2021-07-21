@@ -36,6 +36,7 @@ use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Duration;
 use tokio::spawn;
 use tokio::task::spawn_blocking;
@@ -72,6 +73,19 @@ struct Ctx {
     user_id: String,
 }
 
+impl ::std::default::Default for Ctx {
+    fn default() -> Self {
+        Ctx {
+            args: Args {
+                flag_host: "unset".to_string(),
+                flag_room: "unset".to_string(),
+                flag_webhost: "unset".to_string(),
+            },
+            user_id: "anon".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Scribble {
     color: color,
@@ -98,6 +112,7 @@ lazy_static! {
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
     static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
     static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
+    static ref CTX: RwLock<Ctx> = RwLock::new(Default::default());
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -114,9 +129,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let user_id = Uuid::new_v4().to_hyphenated().to_string();
     debug!("user_id = {:?}", user_id);
-    // TODO: save settings under ~/.hypercards/whiteboard/<user_id>/...
-    // https://github.com/whitequark/rust-xdg
-    // ...but does $HOME survives xochitl updates?
+    // TODO: save settings under /opt/hypercards/users/<user_id>/...
+    let mut wctx = CTX.write().unwrap();
+    *wctx = Ctx { args, user_id };
 
     // TODO: check for updates when asked:
     // reqwest JSON API equivalent of https://github.com/fenollp/reMarkable-tools/releases
@@ -148,36 +163,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paint_mouldings(appref1).await;
     });
 
-    let host = args.clone().flag_host;
+    let host = CTX.read().unwrap().args.flag_host.clone();
     info!("[main] connecting to {:?}...", host);
     let ch = Endpoint::from_shared(host).unwrap().connect().await?;
 
     let ch2 = ch.clone();
-    let ctx2 = Ctx {
-        args: args.clone(),
-        user_id: user_id.clone(),
-    };
     let appref2 = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
-            loop_recv(appref2, ch2, ctx2).await;
+            loop_recv(appref2, ch2).await;
             info!("[loop_recv] terminated");
         })
     });
 
     let ch3 = ch.clone();
-    let ctx3 = Ctx {
-        args: args.clone(),
-        user_id: user_id.clone(),
-    };
     let appref3 = app.upgrade_ref();
     info!("[loop_screensharing] spawn-ing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_screensharing] spawn-ed");
-            loop_screensharing(appref3, ch3, ctx3).await;
+            loop_screensharing(appref3, ch3).await;
             info!("[loop_screensharing] terminated");
         })
     });
@@ -194,7 +201,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *wtx = Some(tx.to_owned());
                 info!("[TXer] unlocked");
             }
-            let ctx = Ctx { args, user_id };
             let mut client = WhiteboardClient::new(ch);
             loop {
                 let rcvd = rx.recv();
@@ -202,7 +208,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match rcvd {
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
                     Ok(drawing) => {
-                        send_drawing(&mut client, drawing, &ctx).await;
+                        send_drawing(&mut client, drawing).await;
                         NEEDS_SHARING.store(true, Ordering::Relaxed);
                     }
                 }
@@ -426,15 +432,14 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     };
 }
 
-fn add_xuser<T>(req: &mut Request<T>, user: String) {
-    let user_id = user.parse().unwrap();
+fn add_xuser<T>(req: &mut Request<T>, user_id: String) {
     let md = Request::metadata_mut(req);
     let key = "x-user";
     assert!(md.get(key).is_none());
-    md.insert(key, user_id);
+    md.insert(key, user_id.parse().unwrap());
 }
 
-async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
+async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
     info!("[loop_screensharing] creating client");
     let mut client = ScreenSharingClient::new(ch);
     info!("[loop_screensharing] created client");
@@ -479,10 +484,10 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: 
                             info!("[loop_screensharing] compressed!");
                             let bytes = compressed.len();
                             let mut req = Request::new(SendScreenReq {
-                                room_id: ctx.args.flag_room.clone(),
+                                room_id: CTX.read().unwrap().args.flag_room.clone(),
                                 screen_png: compressed,
                             });
-                            add_xuser(&mut req, ctx.user_id.clone());
+                            add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
                             debug!("[loop_screensharing] sending canvas");
                             match client.send_screen(req).await {
                                 Err(err) => error!("[loop_screensharing] !send: {:?}", err),
@@ -499,11 +504,11 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel, ctx: 
     }
 }
 
-async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
+async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
     let mut req = Request::new(RecvEventsReq {
-        room_id: ctx.args.flag_room,
+        room_id: CTX.read().unwrap().args.flag_room.clone(),
     });
-    add_xuser(&mut req, ctx.user_id);
+    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
 
     info!("[loop_recv] creating stream");
     let mut client = WhiteboardClient::new(ch);
@@ -615,7 +620,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, ctx: &Ctx) {
+async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) {
     let event = Event {
         created_at: 0,
         by_user_id: "".into(),
@@ -624,9 +629,9 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
     };
     let mut req = Request::new(SendEventReq {
         event: Some(event),
-        room_ids: vec![ctx.args.flag_room.to_owned()],
+        room_ids: vec![CTX.read().unwrap().args.flag_room.clone()],
     });
-    add_xuser(&mut req, ctx.user_id.to_owned());
+    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)
