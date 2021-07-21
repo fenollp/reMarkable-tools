@@ -98,10 +98,12 @@ struct Scribble {
     pressure: i32,
 }
 
+const TOOLBAR_BAR_WIDTH: u32 = 2;
+const TOOLBAR_HEIGHT: u32 = TOOLBAR_BAR_WIDTH + 70; // TODO: make the top bar ~140
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-    top: 2 + 70, // TODO: make the top bar ~140
+    top: TOOLBAR_HEIGHT,
     left: 0,
-    height: DISPLAYHEIGHT as u32 - (2 + 70),
+    height: DISPLAYHEIGHT as u32 - TOOLBAR_HEIGHT,
     width: DISPLAYWIDTH as u32,
 };
 
@@ -745,9 +747,9 @@ fn top_bar(c: drawing::Color) -> Drawing {
     let count = xs.len();
     Drawing {
         xs,
-        ys: vec![CANVAS_REGION.top as f32 - 2.; count],
+        ys: vec![TOOLBAR_HEIGHT as f32 - TOOLBAR_BAR_WIDTH as f32; count],
         pressures: vec![3992; count],
-        widths: vec![2; count],
+        widths: vec![TOOLBAR_BAR_WIDTH; count],
         color: c as i32,
     }
 }
