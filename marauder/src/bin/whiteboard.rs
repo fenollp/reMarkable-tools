@@ -100,6 +100,12 @@ struct Scribble {
 
 const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = TOOLBAR_BAR_WIDTH + 70; // TODO: make the top bar ~140
+const TOOLBAR_REGION: mxcfb_rect = mxcfb_rect {
+    top: 0,
+    left: 0,
+    height: TOOLBAR_HEIGHT,
+    width: DISPLAYWIDTH as u32,
+};
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: TOOLBAR_HEIGHT,
     left: 0,
@@ -107,17 +113,20 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     width: DISPLAYWIDTH as u32,
 };
 
+type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
+type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
+
 lazy_static! {
     static ref PEOPLE_COUNT: AtomicU32 = AtomicU32::new(0);
     static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
-        Mutex::new(VecDeque::new());
+    static ref WACOM_HISTORY: Mutex<VecDeque<PosNpress>> = Mutex::new(VecDeque::new());
     static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
     static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
     static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
     static ref CTX: RwLock<Ctx> = RwLock::new(Default::default());
+    static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -219,6 +228,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         })
+    });
+
+    info!("[qrcoder] spawn-ing");
+    spawn(async move {
+        info!("[qrcoder] spawn-ed");
+        let webhost = CTX.read().unwrap().args.flag_webhost.clone();
+        let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
+        debug!("[qrcoder] generating");
+        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 128).unwrap();
+        debug!("[qrcoder] loading");
+        let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
+        let img_rgb = img_rgb565.to_rgb();
+        let mut wqrcode = QRCODE.write().unwrap();
+        *wqrcode = Some(img_rgb);
+        info!("[qrcoder] done");
     });
 
     info!("Init complete. Beginning event dispatch...");
@@ -709,32 +733,33 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     });
     let appref6 = app.upgrade_ref();
     spawn(async move {
-        let webhost = CTX.read().unwrap().args.flag_webhost.clone();
-        let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
-        debug!("[qrcode] generating");
-        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 128).unwrap();
-        debug!("[qrcode] loading");
-        let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
-        let img_rgb = img_rgb565.to_rgb();
-        let fb = appref6.get_framebuffer_ref();
-        debug!("[qrcode] painting");
-        debug!(
-            "[qrcode] >>> {:?} {}x{}",
-            CANVAS_REGION.top_left(),
-            img_rgb.width(),
-            img_rgb.height()
-        ); ////////////////////////////////////////// [2021-07-20T15:11:11Z DEBUG whiteboard] [qrcode] >>> Point2 [0, 72] 128x128
-        fb.draw_image(&img_rgb, CANVAS_REGION.top_left().cast().unwrap());
-        fb.partial_refresh(
-            &CANVAS_REGION,
-            PartialRefreshMode::Wait,
-            waveform_mode::WAVEFORM_MODE_GC16,
-            display_temp::TEMP_USE_PAPYRUS,
-            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-            0,
-            false,
-        );
-        debug!("[qrcode] done");
+        loop {
+            match QRCODE.read().unwrap().as_ref() {
+                None => (),
+                Some(qrcode) => {
+                    debug!("[qrcode] painting");
+                    let fb = appref6.get_framebuffer_ref();
+                    let (x0, y0) = (5, TOOLBAR_REGION.width - 2 * qrcode.width());
+                    fb.draw_image(&qrcode, cgmath::Point2 { x: x0, y: y0 }.cast().unwrap());
+                    fb.partial_refresh(
+                        &mxcfb_rect {
+                            top: x0,
+                            left: y0,
+                            height: qrcode.height(),
+                            width: qrcode.width(),
+                        },
+                        PartialRefreshMode::Async, //TODO: drop PartialRefreshMode::Wait,
+                        waveform_mode::WAVEFORM_MODE_GC16,
+                        display_temp::TEMP_USE_PAPYRUS,
+                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                        0,
+                        false,
+                    );
+                    debug!("[qrcode] done");
+                    break;
+                }
+            };
+        }
     });
 }
 
