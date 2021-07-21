@@ -154,8 +154,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             refresh: UIConstraintRefresh::RefreshAndWait,
             inner: UIElement::Region {
                 size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
-                border_px: 2,
-                border_color: color::WHITE,
+                border_px: 2, // TODO: try lower or zero
+                border_color: color::BLACK,
             },
             ..Default::default()
         },
