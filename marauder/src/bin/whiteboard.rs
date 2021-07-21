@@ -28,6 +28,7 @@ use marauder::proto::hypercards::SendScreenReq;
 use marauder::proto::hypercards::{drawing, event};
 use marauder::proto::hypercards::{Drawing, Event};
 use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
+use qrcode_generator::QrCodeEcc;
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::convert::TryInto;
@@ -695,6 +696,36 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     spawn(async move {
         let count = PEOPLE_COUNT.load(Ordering::Relaxed);
         paint_people_counter(appref5, count, c).await;
+    });
+    let appref6 = app.upgrade_ref();
+    spawn(async move {
+        let web_host = "http://192.168.1.20:18888/s";
+        let room_id = "living-room";
+        let url = web_host.to_owned() + "/" + room_id + "/";
+        debug!("[qrcode] generating");
+        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 128).unwrap();
+        debug!("[qrcode] loading");
+        let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
+        let img_rgb = img_rgb565.to_rgb();
+        let fb = appref6.get_framebuffer_ref();
+        debug!("[qrcode] painting");
+        debug!(
+            "[qrcode] >>> {:?} {}x{}",
+            CANVAS_REGION.top_left(),
+            img_rgb.width(),
+            img_rgb.height()
+        ); ////////////////////////////////////////// [2021-07-20T15:11:11Z DEBUG whiteboard] [qrcode] >>> Point2 [0, 72] 128x128
+        fb.draw_image(&img_rgb, CANVAS_REGION.top_left().cast().unwrap());
+        fb.partial_refresh(
+            &CANVAS_REGION,
+            PartialRefreshMode::Wait,
+            waveform_mode::WAVEFORM_MODE_GC16,
+            display_temp::TEMP_USE_PAPYRUS,
+            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+            0,
+            false,
+        );
+        debug!("[qrcode] done");
     });
 }
 

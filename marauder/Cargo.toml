@@ -35,5 +35,7 @@ quick-xml = { version = "0.22", features = ["serialize"] }
 
 crc-any = { version = "2.3.12", default-features = false, features = ["heapless"] }
 
+qrcode-generator = "4.1.1"
+
 [build-dependencies]
 tonic-build = "0.3"
