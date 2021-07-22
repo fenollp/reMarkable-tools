@@ -17,6 +17,7 @@ libremarkable = "^0"
 log = "^0"
 nom = "5"
 rand = "^0"
+image = "0.21.3" # matches libremarkable's
 
 tonic = "0.3"
 prost = "0.6"
@@ -31,6 +32,10 @@ docopt = "1"
 uuid = { version = "0.8", features = ["v4"] }
 
 quick-xml = { version = "0.22", features = ["serialize"] }
+
+crc-any = { version = "2.3.12", default-features = false, features = ["heapless"] }
+
+qrcode-generator = "4.1.1"
 
 [build-dependencies]
 tonic-build = "0.3"

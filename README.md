@@ -179,3 +179,5 @@ https://github.com/fogleman/ln
 https://en.wikipedia.org/wiki/Turtle_graphics
 https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
 https://oeis.org/A088218
+
+https://mlajtos.mu/posts/new-kind-of-paper

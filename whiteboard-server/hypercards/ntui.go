@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ var errBadUserInput = errors.New("bad user string")
 func ntui(s string) error {
 	if false ||
 		strings.Contains(s, ".") ||
+		strings.Contains(s, "/") ||
 		strings.Contains(s, "*") ||
 		strings.Contains(s, ">") ||
 		false {

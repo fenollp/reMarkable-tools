@@ -23,6 +23,44 @@
         ],
         "messages": [
           {
+            "name": "RecvScreenReq",
+            "fields": [
+              {
+                "id": 1,
+                "name": "room_id",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "name": "RecvScreenRep",
+            "fields": [
+              {
+                "id": 1,
+                "name": "canvas_png",
+                "type": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "SendScreenReq",
+            "fields": [
+              {
+                "id": 1,
+                "name": "room_id",
+                "type": "string"
+              },
+              {
+                "id": 2,
+                "name": "screen_png",
+                "type": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "SendScreenRep"
+          },
+          {
             "name": "Event",
             "fields": [
               {
@@ -190,10 +228,25 @@
                 "out_type": "ListRoomMembersRep"
               }
             ]
+          },
+          {
+            "name": "ScreenSharing",
+            "rpcs": [
+              {
+                "name": "SendScreen",
+                "in_type": "SendScreenReq",
+                "out_type": "SendScreenRep"
+              },
+              {
+                "name": "RecvScreen",
+                "in_type": "RecvScreenReq",
+                "out_type": "RecvScreenRep"
+              }
+            ]
           }
         ],
         "package": {
-          "name": "hypercard.whiteboard"
+          "name": "hypercards"
         }
       }
     }

@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (srv *Server) validateRecvEvent(ctx context.Context, req *RecvEventsReq) error {
+func (srv *Server) validateRecvEvents(ctx context.Context, req *RecvEventsReq) error {
 	roomID := req.GetRoomId()
 	if roomID == "" {
 		return errBadRequest
@@ -29,10 +29,10 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 		return
 	}
 	log := NewLogFromCtx(ctx)
-	log.Info("handling RecvEvent")
+	log.Info("handling RecvEvents")
 	start := time.Now()
 
-	if err = srv.validateRecvEvent(ctx, req); err != nil {
+	if err = srv.validateRecvEvents(ctx, req); err != nil {
 		log.Error("", zap.Error(err))
 		return
 	}
@@ -57,7 +57,7 @@ func (srv *Server) RecvEvents(req *RecvEventsReq, stream Whiteboard_RecvEventsSe
 	// Join event
 	{
 		event := &Event{
-			CreatedAt: time.Now().UnixNano(),
+			CreatedAt: start.UnixNano(),
 			InRoomId:  req.GetRoomId(),
 			ByUserId:  ctxUID(ctx),
 			Event:     &Event_UserJoinedTheRoom{UserJoinedTheRoom: true},

@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"context"
@@ -88,7 +88,7 @@ func (srv *Server) SendEvent(ctx context.Context, req *SendEventReq) (rep *SendE
 	}
 
 	event := &Event{
-		CreatedAt: time.Now().UnixNano(),
+		CreatedAt: start.UnixNano(),
 		ByUserId:  ctxUID(ctx),
 		Event:     req.GetEvent().GetEvent(),
 	}

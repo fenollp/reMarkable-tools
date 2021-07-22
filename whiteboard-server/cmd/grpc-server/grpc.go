@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"syscall"
 
-	wb "github.com/fenollp/reMarkable-tools/whiteboard-server/hypercard_whiteboard"
+	"github.com/fenollp/reMarkable-tools/whiteboard-server/hypercards"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -24,7 +24,7 @@ func init() {
 		panic(err)
 	}
 
-	wb.MustSetupLogging()
+	hypercards.MustSetupLogging()
 }
 
 func main() {
@@ -32,10 +32,10 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	log := wb.NewLogFromCtx(ctx)
+	log := hypercards.NewLogFromCtx(ctx)
 
 	log.Info("starting runtime logic...")
-	srv, err := wb.NewServer(ctx)
+	srv, err := hypercards.NewServer(ctx, false)
 	if err != nil {
 		log.Fatal("", zap.Error(err))
 	}
@@ -43,7 +43,8 @@ func main() {
 
 	s := grpc.NewServer()
 	defer s.Stop()
-	wb.RegisterWhiteboardServer(s, srv)
+	hypercards.RegisterWhiteboardServer(s, srv)
+	hypercards.RegisterScreenSharingServer(s, srv)
 
 	go func() {
 		// Cuts ctx

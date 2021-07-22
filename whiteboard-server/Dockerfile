@@ -1,25 +1,38 @@
-# Not using golang:1-alpine because of https://github.com/golang/go/issues/35777
-FROM golang:1.13-alpine AS builder
-# FROM golang:1-alpine AS builder
-RUN set -ux \
- && apk update \
- && apk add ca-certificates git tzdata \
- && update-ca-certificates
+# syntax=docker.io/docker/dockerfile:1.2@sha256:e2a8561e419ab1ba6b2fe6cbdf49fd92b95912df1cf7d313c3e2230a333fdbcc
 
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1-alpine@sha256:3b11fcdf0d8436e1a5ba3a8bf5206c7f28f5a652ac899f2107ebe127b668bcfa AS builder
+RUN \
+  --mount=type=cache,target=/var/cache/apk ln -vs /var/cache/apk /etc/apk/cache && \
+    set -ux \
+ && apk update
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN set -ux \
+RUN \
+  --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+    set -ux \
  && go mod download \
  && go mod verify
 COPY . .
-RUN set -ux \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -o whiteboard-server -ldflags '-s -w'
 
-FROM scratch
-WORKDIR /
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /app/whiteboard-server /whiteboard-server
-EXPOSE 10000/tcp
-ENTRYPOINT ["/whiteboard-server"]
+FROM builder AS builder-grpc
+RUN \
+  --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+    set -ux \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -o grpc-server -ldflags '-s -w' cmd/grpc-server/grpc.go
+
+FROM builder AS builder-http
+RUN \
+  --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+    set -ux \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -o http-server -ldflags '-s -w' cmd/http-server/http.go
+
+FROM scratch AS grpc-server
+COPY --from=builder-grpc /app/grpc-server /grpc-server
+ENTRYPOINT ["/grpc-server"]
+
+FROM scratch AS http-server
+COPY --from=builder-http /app/http-server /http-server
+ENTRYPOINT ["/http-server"]

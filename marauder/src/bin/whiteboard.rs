@@ -1,3 +1,4 @@
+use crc_any::CRC;
 use docopt::Docopt;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -5,8 +6,11 @@ use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
 use libremarkable::framebuffer::common::*;
+use libremarkable::framebuffer::common::{DISPLAYHEIGHT, DISPLAYWIDTH};
 use libremarkable::framebuffer::refresh::PartialRefreshMode;
+use libremarkable::framebuffer::storage;
 use libremarkable::framebuffer::FramebufferDraw;
+use libremarkable::framebuffer::FramebufferIO;
 use libremarkable::framebuffer::FramebufferRefresh;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
@@ -18,10 +22,13 @@ use log::{debug, error, info, warn};
 use marauder::drawings;
 use marauder::fonts;
 use marauder::modes::draw::DrawMode;
-use marauder::proto::whiteboard::whiteboard_client::WhiteboardClient;
-use marauder::proto::whiteboard::{drawing, event};
-use marauder::proto::whiteboard::{Drawing, Event};
-use marauder::proto::whiteboard::{RecvEventsReq, SendEventReq};
+use marauder::proto::hypercards::screen_sharing_client::ScreenSharingClient;
+use marauder::proto::hypercards::whiteboard_client::WhiteboardClient;
+use marauder::proto::hypercards::SendScreenReq;
+use marauder::proto::hypercards::{drawing, event};
+use marauder::proto::hypercards::{Drawing, Event};
+use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
+use qrcode_generator::QrCodeEcc;
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::convert::TryInto;
@@ -29,6 +36,7 @@ use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Duration;
 use tokio::spawn;
 use tokio::task::spawn_blocking;
@@ -42,27 +50,43 @@ const USAGE: &str = "
 reMarkable whiteboard HyperCard.
 
 Usage:
-  whiteboard [--room=<ROOM>] [--host=<HOST>]
+  whiteboard [--room=<ROOM>] [--host=<HOST>] [--webhost=<WEBHOST>]
   whiteboard (-h | --help)
   whiteboard --version
 
 Options:
-  --host=<HOST>  Server to connect to [default: http://fknwkdacd.com:10000].
-  --room=<ROOM>  Room to join [default: living-room].
-  -h --help      Show this screen.
-  --version      Show version.
+  --host=<HOST>        gRPC server to connect to [default: http://fknwkdacd.com:10000].
+  --room=<ROOM>        Room to join [default: living-room].
+  --webhost=<WEBHOST>  Screen sharing HTTP server [default: http://fknwkdacd.com:18888/s].
+  -h --help            Show this screen.
+  --version            Show version.
 ";
 
 #[derive(Debug, Deserialize, Clone)]
 struct Args {
     flag_host: String,
     flag_room: String,
+    flag_webhost: String,
+    // TODO: here try user_id: String,
 }
 
 #[derive(Debug, Clone)]
 struct Ctx {
     args: Args,
     user_id: String,
+}
+
+impl ::std::default::Default for Ctx {
+    fn default() -> Self {
+        Ctx {
+            args: Args {
+                flag_host: "unset".to_string(),
+                flag_room: "unset".to_string(),
+                flag_webhost: "unset".to_string(),
+            },
+            user_id: "anon".to_string(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -74,22 +98,35 @@ struct Scribble {
     pressure: i32,
 }
 
-const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-    top: 2 + 70,
+const TOOLBAR_BAR_WIDTH: u32 = 2;
+const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
+const TOOLBAR_REGION: mxcfb_rect = mxcfb_rect {
+    top: 0,
     left: 0,
-    height: 1900,
-    width: 1404,
+    height: TOOLBAR_HEIGHT,
+    width: DISPLAYWIDTH as u32,
 };
+const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
+    top: TOOLBAR_HEIGHT,
+    left: 0,
+    height: DISPLAYHEIGHT as u32 - TOOLBAR_HEIGHT,
+    width: DISPLAYWIDTH as u32,
+};
+
+type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
+type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
 
 lazy_static! {
     static ref PEOPLE_COUNT: AtomicU32 = AtomicU32::new(0);
     static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
     static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
-        Mutex::new(VecDeque::new());
+    static ref WACOM_HISTORY: Mutex<VecDeque<PosNpress>> = Mutex::new(VecDeque::new());
     static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
     static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
+    static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
+    static ref CTX: RwLock<Ctx> = RwLock::new(Default::default());
+    static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -104,11 +141,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|e| e.exit());
     debug!("args = {:?}", args);
 
-    let user_id = Uuid::new_v4().to_hyphenated().to_string();
-    debug!("user_id = {:?}", user_id);
-    // TODO: save settings under ~/.hypercards/whiteboard/<user_id>/...
-    // https://github.com/whitequark/rust-xdg
-    // ...but does $HOME survives xochitl updates?
+    {
+        let user_id = Uuid::new_v4().to_hyphenated().to_string();
+        debug!("user_id = {:?}", user_id);
+        // TODO: save settings under /opt/hypercards/users/<user_id>/...
+        let mut wctx = CTX.write().unwrap();
+        *wctx = Ctx { args, user_id };
+    }
 
     // TODO: check for updates when asked:
     // reqwest JSON API equivalent of https://github.com/fenollp/reMarkable-tools/releases
@@ -126,8 +165,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             refresh: UIConstraintRefresh::RefreshAndWait,
             inner: UIElement::Region {
                 size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
-                border_px: 2,
-                border_color: color::WHITE,
+                border_px: 0,
+                border_color: color::BLACK,
             },
             ..Default::default()
         },
@@ -135,27 +174,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     app.draw_elements();
 
-    let appref0 = app.upgrade_ref();
-    spawn(async move {
-        paint_mouldings(appref0).await;
+    let appref1 = app.upgrade_ref();
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
+            paint_mouldings(appref1).await;
+        });
     });
 
-    let host = args.clone().flag_host;
+    let host = CTX.read().unwrap().args.flag_host.clone();
     info!("[main] connecting to {:?}...", host);
-    let ch = Endpoint::from_shared(host).unwrap().connect().await?;
+    let ch = Endpoint::from_shared(host)
+        .unwrap()
+        // .connect_timeout(Duration::from_secs(10)) // todo: upgrade tonic
+        .timeout(Duration::from_secs(4))
+        .connect()
+        .await?;
 
     let ch2 = ch.clone();
-    let ctx2 = Ctx {
-        args: args.clone(),
-        user_id: user_id.clone(),
-    };
-    let appref = app.upgrade_ref();
+    let appref2 = app.upgrade_ref();
     info!("[loop_recv] spawn-ing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
-            loop_recv(appref, ch2, ctx2).await;
+            loop_recv(appref2, ch2).await;
             info!("[loop_recv] terminated");
+        })
+    });
+
+    let ch3 = ch.clone();
+    let appref3 = app.upgrade_ref();
+    info!("[loop_screensharing] spawn-ing");
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
+            info!("[loop_screensharing] spawn-ed");
+            loop_screensharing(appref3, ch3).await;
+            info!("[loop_screensharing] terminated");
         })
     });
 
@@ -171,17 +224,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *wtx = Some(tx.to_owned());
                 info!("[TXer] unlocked");
             }
-            let ctx = Ctx { args, user_id };
             let mut client = WhiteboardClient::new(ch);
             loop {
                 let rcvd = rx.recv();
                 debug!("[TXer] FWDing...");
                 match rcvd {
-                    Ok(drawing) => send_drawing(&mut client, drawing, &ctx).await,
                     Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+                    Ok(drawing) => {
+                        send_drawing(&mut client, drawing).await;
+                        NEEDS_SHARING.store(true, Ordering::Relaxed);
+                    }
                 }
             }
         })
+    });
+
+    info!("[qrcoder] spawn-ing");
+    spawn(async move {
+        info!("[qrcoder] spawn-ed");
+        let webhost = CTX.read().unwrap().args.flag_webhost.clone();
+        let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
+        debug!("[qrcoder] generating");
+        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
+        debug!("[qrcoder] loading");
+        let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
+        let img_rgb = img_rgb565.to_rgb();
+        let mut wqrcode = QRCODE.write().unwrap();
+        *wqrcode = Some(img_rgb);
+        info!("[qrcoder] done");
     });
 
     info!("Init complete. Beginning event dispatch...");
@@ -400,17 +470,83 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     };
 }
 
-fn add_xuser<T>(req: &mut Request<T>, user: String) {
-    let user_id = user.parse().unwrap();
+fn add_xuser<T>(req: &mut Request<T>, user_id: String) {
     let md = Request::metadata_mut(req);
-    assert!(md.insert("x-user", user_id).is_none());
+    let key = "x-user";
+    assert!(md.get(key).is_none());
+    md.insert(key, user_id.parse().unwrap());
 }
 
-async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
+async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
+    info!("[loop_screensharing] creating client");
+    let mut client = ScreenSharingClient::new(ch);
+    info!("[loop_screensharing] created client");
+
+    let mut previous_checksum: u64 = 0;
+    let (mut failsafe, wrapat) = (0, 10);
+    loop {
+        delay_for(Duration::from_millis(500)).await;
+
+        failsafe += 1;
+        let wrapped = failsafe == wrapat;
+        if wrapped {
+            failsafe = 0;
+        }
+        if !(wrapped || NEEDS_SHARING.load(Ordering::Relaxed)) {
+            continue;
+        }
+
+        debug!("[loop_screensharing] dumping canvas");
+        let framebuffer = app.get_framebuffer_ref();
+        let roi = CANVAS_REGION;
+        match framebuffer.dump_region(roi) {
+            Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
+            Ok(buff) => {
+                let mut crc32 = CRC::crc32();
+                crc32.digest(&buff);
+                let new_checksum = crc32.get_crc();
+                if new_checksum == previous_checksum {
+                    NEEDS_SHARING.store(false, Ordering::Relaxed);
+                    continue;
+                }
+                previous_checksum = new_checksum;
+                debug!("[loop_screensharing] compressing canvas");
+                if let Some(img0) =
+                    storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
+                {
+                    let img = image::DynamicImage::ImageRgb8(img0);
+                    let mut compressed = Vec::with_capacity(50_000);
+                    match img.write_to(&mut compressed, image::ImageOutputFormat::PNG) {
+                        Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
+                        Ok(()) => {
+                            info!("[loop_screensharing] compressed!");
+                            let bytes = compressed.len();
+                            let mut req = Request::new(SendScreenReq {
+                                room_id: CTX.read().unwrap().args.flag_room.clone(),
+                                screen_png: compressed,
+                            });
+                            add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
+                            debug!("[loop_screensharing] sending canvas");
+                            match client.send_screen(req).await {
+                                Err(err) => error!("[loop_screensharing] !send: {:?}", err),
+                                Ok(_) => {
+                                    NEEDS_SHARING.store(false, Ordering::Relaxed);
+                                    debug!("[loop_screensharing] sent {} bytes", bytes);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+}
+
+async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
     let mut req = Request::new(RecvEventsReq {
-        room_id: ctx.args.flag_room,
+        room_id: CTX.read().unwrap().args.flag_room.clone(),
     });
-    add_xuser(&mut req, ctx.user_id);
+    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
 
     info!("[loop_recv] creating stream");
     let mut client = WhiteboardClient::new(ch);
@@ -431,6 +567,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel, ctx: Ctx) {
                     debug!("[loop_recv] drawing {:?} points", len - 2);
                     paint(app, drawing).await;
                     info!("[loop_recv] painted");
+                    NEEDS_SHARING.store(true, Ordering::Relaxed);
                 }
                 Some(event::Event::UsersInTheRoom(c)) => {
                     let old = PEOPLE_COUNT.swap(c, Ordering::Relaxed);
@@ -521,7 +658,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, ctx: &Ctx) {
+async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) {
     let event = Event {
         created_at: 0,
         by_user_id: "".into(),
@@ -530,9 +667,9 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing, 
     };
     let mut req = Request::new(SendEventReq {
         event: Some(event),
-        room_ids: vec![ctx.args.flag_room.to_owned()],
+        room_ids: vec![CTX.read().unwrap().args.flag_room.clone()],
     });
-    add_xuser(&mut req, ctx.user_id.to_owned());
+    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)
@@ -581,7 +718,38 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let c = drawing::Color::Black;
     debug!("[paint_mouldings] drawing UI...");
     paint_vec(app, drawings::title_whiteboard::f(c)).await;
-    delay_for(INTER_DRAWING_PACE).await;
+
+    let appref6 = app.upgrade_ref();
+    spawn(async move {
+        loop {
+            match QRCODE.read().unwrap().as_ref() {
+                None => (),
+                Some(qrcode) => {
+                    debug!("[qrcode] painting");
+                    let fb = appref6.get_framebuffer_ref();
+                    let region = mxcfb_rect {
+                        top: 4,
+                        left: TOOLBAR_REGION.width - (4 + qrcode.width()),
+                        height: qrcode.height(),
+                        width: qrcode.width(),
+                    };
+                    fb.draw_image(qrcode, region.top_left().cast().unwrap());
+                    fb.partial_refresh(
+                        &region,
+                        PartialRefreshMode::Async,
+                        waveform_mode::WAVEFORM_MODE_GC16,
+                        display_temp::TEMP_USE_PAPYRUS,
+                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                        0,
+                        false,
+                    );
+                    debug!("[qrcode] done");
+                    break;
+                }
+            };
+        }
+    });
+
     let appref1 = app.upgrade_ref();
     spawn(async move {
         paint(appref1, top_bar(c)).await;
@@ -614,9 +782,9 @@ fn top_bar(c: drawing::Color) -> Drawing {
     let count = xs.len();
     Drawing {
         xs,
-        ys: vec![70.444; count],
+        ys: vec![TOOLBAR_HEIGHT as f32 - TOOLBAR_BAR_WIDTH as f32; count],
         pressures: vec![3992; count],
-        widths: vec![2; count],
+        widths: vec![TOOLBAR_BAR_WIDTH; count],
         color: c as i32,
     }
 }

@@ -1,7 +1,6 @@
 syntax = "proto3";
 
-package hypercard.whiteboard;
-// option go_package = "whiteboard";
+package hypercards;
 
 // import "google/protobuf/empty.proto";
 // import "google/protobuf/wrappers.proto";
@@ -25,6 +24,34 @@ service Whiteboard {
   // ListRoomMembers returns a paginated list of room members.
   rpc ListRoomMembers(ListRoomMembersReq) returns (ListRoomMembersRep) {}
 
+}
+
+// ScreenSharing is a HyperCard that allows sending/receiving screen data.
+// Note: all calls MUST be done with a "user-id" header.
+service ScreenSharing {
+
+  // SendScreen sends the drawable canvas as it changes.
+  rpc SendScreen(SendScreenReq) returns (SendScreenRep) {}
+
+  // RecvScreen gets the most recent screenshot of a room.
+  rpc RecvScreen(RecvScreenReq) returns (RecvScreenRep) {}
+
+}
+
+message RecvScreenReq {
+  string room_id = 1; // The room to receive canvas from.
+}
+
+message RecvScreenRep {
+  bytes canvas_png = 1; // The screenshot as a PNG image.
+}
+
+message SendScreenReq {
+  string room_id = 1; // The room this screenshot is from.
+  bytes screen_png = 2; // Whole screenshot, encoded in PNG.
+}
+
+message SendScreenRep {
 }
 
 message Event {

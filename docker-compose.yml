@@ -5,7 +5,7 @@ services:
     image: nats:2-alpine
     environment:
       # Only here so refs can be bound
-      _1: &NATS_USER 'reMarkable-HyperCard'
+      _1: &NATS_USER 'reMarkable-HyperCards'
       _2: &NATS_PASS 'iQ9KE4XNiq9XmCmGbbyjsQ7KP9DMHXL6yLGeFHfj'
     command:
     - --user
@@ -15,23 +15,58 @@ services:
     - -m
     - '8222'
     - -DVV
-    ports:
-    - '127.0.0.1:4222:4222'
-    - '127.0.0.1:6222:6222'
-    - '127.0.0.1:8222:8222'
+    # ports:
+    # - '127.0.0.1:4222:4222'
+    # - '127.0.0.1:6222:6222'
+    # - '127.0.0.1:8222:8222'
 
-  whiteboard:
+  redis:
+    image: redis:5-alpine
+    environment:
+      # Only here so refs can be bound
+      _1: &REDIS_HOST 'redis'
+      _2: &REDIS_PORT '6379'
+    volumes:
+    - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    # ports:
+    # - '127.0.0.1:6379:6379'
+
+  http-server:
+    depends_on:
+    - redis
+    build:
+      context: ./whiteboard-server/
+      target: http-server
+    image: http-server
+    hostname: http-server
+    container_name: http-server
+    restart: unless-stopped
+    environment:
+      PORT: '18888'
+      PATH_PREFIX: /s
+      REDIS_HOST: *REDIS_HOST
+      REDIS_PORT: *REDIS_PORT
+    ports:
+    - '18888:18888'
+
+  grpc-server:
     depends_on:
     - nats
-    build: ./whiteboard-server
-    image: wb
-    hostname: wb
-    container_name: wb
+    - redis
+    build:
+      context: ./whiteboard-server/
+      target: grpc-server
+    image: grpc-server
+    hostname: grpc-server
+    container_name: grpc-server
     restart: unless-stopped
     environment:
       PORT: '10000'
       NATS_USER: *NATS_USER
       NATS_PASS: *NATS_PASS
+      REDIS_HOST: *REDIS_HOST
+      REDIS_PORT: *REDIS_PORT
       GRPC_GO_LOG_SEVERITY_LEVEL: info
       GRPC_GO_LOG_VERBOSITY_LEVEL: 99
     ports:

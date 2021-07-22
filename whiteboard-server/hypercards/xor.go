@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 func xor(a, b bool) bool     { return (a && !b) || (!a && b) }
 func xor3(a, b, c bool) bool { return (a && !b && !c) || (!a && b && !c) || (!a && !b && c) }

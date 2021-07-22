@@ -1,4 +1,4 @@
-package hypercard_whiteboard
+package hypercards
 
 import (
 	"errors"
