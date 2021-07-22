@@ -37,7 +37,7 @@
             "fields": [
               {
                 "id": 1,
-                "name": "png_canvas",
+                "name": "canvas_png",
                 "type": "bytes"
               }
             ]

@@ -59,7 +59,7 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
-		data := rep.GetPngCanvas()
+		data := rep.GetCanvasPng()
 		io.CopyN(w, bytes.NewReader(data), int64(len(data)))
 	})
 

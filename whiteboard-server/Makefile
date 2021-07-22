@@ -6,9 +6,7 @@ RUN ?= docker run --rm --user $$(id -u):$$(id -g)
 PROTOC ?= $(RUN) -v "$$PWD/../:$$PWD/../" -w "$$PWD" $(GPB_IMG)
 PROTOLOCK ?= $(RUN) -v $$PWD/../:/protolock -w /protolock nilslice/protolock  # commit --force
 
-PB_FILES  = whiteboard.pb.go
-
-all: lint
+all: lint hypercards/whiteboard.pb.go
 
 debug:
 	$(COMPOSE) config -q
@@ -23,9 +21,9 @@ update:
 	go mod verify
 	$(COMPOSE) pull --ignore-pull-failures
 
-whiteboard.pb.go: ../marauder/proto/hypercard/whiteboard.proto
+hypercards/whiteboard.pb.go: ../marauder/proto/hypercard/whiteboard.proto
 	$(PROTOC) -I=.. --go_out=plugins=grpc:. $^
-	mv marauder/proto/hypercard/whiteboard.pb.go hypercards/
+	mv marauder/proto/hypercard/whiteboard.pb.go $@
 	rmdir marauder/proto/hypercard marauder/proto marauder
 	$(PROTOLOCK) commit
 

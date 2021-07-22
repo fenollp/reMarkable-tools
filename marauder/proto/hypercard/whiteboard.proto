@@ -30,31 +30,25 @@ service Whiteboard {
 // Note: all calls MUST be done with a "user-id" header.
 service ScreenSharing {
 
-  // ScreenSharing streams the compressed canvas every Ns or after each windows of Ns
-  //at the client's initiative
+  // SendScreen sends the drawable canvas as it changes.
   rpc SendScreen(SendScreenReq) returns (SendScreenRep) {}
 
-  // RecvScreen gets the last compressed canvas
+  // RecvScreen gets the most recent screenshot of a room.
   rpc RecvScreen(RecvScreenReq) returns (RecvScreenRep) {}
 
 }
 
 message RecvScreenReq {
-  string room_id = 1; // Called by https://fknwkdacd.com:18888/wb/live/living-room from QRcode scanning at https://fknwkdacd.com:18888/wb/live
-  // string password = 2;
-  // app has room QRcode in toolbar which points to .../live/<room>
-  // change <room> so it stays relatively short so QRcode can be around 2cmx2cm (maybe nah) ah actually r-1 | r | r+1
-  // QRcode must be scannable by phone/laptop/desktop and lead to webpage streaming canvas
+  string room_id = 1; // The room to receive canvas from.
 }
 
 message RecvScreenRep {
-  bytes png_canvas = 1;
+  bytes canvas_png = 1; // The screenshot as a PNG image.
 }
 
 message SendScreenReq {
-  string room_id = 1; // The room this is from.
-  bytes screen_png = 2; // Whole screenshot, encoded in PNG
-  // string fwd_to_email = 2; // If set, also sends an email /// actually this requires user auth so keep client side.
+  string room_id = 1; // The room this screenshot is from.
+  bytes screen_png = 2; // Whole screenshot, encoded in PNG.
 }
 
 message SendScreenRep {

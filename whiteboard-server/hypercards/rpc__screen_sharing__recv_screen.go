@@ -41,7 +41,7 @@ func (srv *Server) RecvScreen(ctx context.Context, req *RecvScreenReq) (rep *Rec
 	}
 
 	rep = &RecvScreenRep{
-		PngCanvas: png,
+		CanvasPng: png,
 	}
 	log.Info("handled RecvScreen", zap.Duration("in", time.Since(start)))
 	return
