@@ -47,5 +47,5 @@ whiteboard: EXE = whiteboard
 whiteboard: fmt
 	cross build --target=$(TARGET) --release --bin $(EXE) #--locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	scp -pC $(BIN) $(DEVICE):
+	rsync -a --stats --progress $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=$(HOST) --webhost=$(WEBHOST) | tail -f'

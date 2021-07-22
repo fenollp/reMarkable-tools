@@ -8,3 +8,6 @@ debug: lint
 
 lint:
 	$(COMPOSE) config -q
+
+clean:
+	$(COMPOSE) down

@@ -141,11 +141,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|e| e.exit());
     debug!("args = {:?}", args);
 
-    let user_id = Uuid::new_v4().to_hyphenated().to_string();
-    debug!("user_id = {:?}", user_id);
-    // TODO: save settings under /opt/hypercards/users/<user_id>/...
-    let mut wctx = CTX.write().unwrap();
-    *wctx = Ctx { args, user_id };
+    {
+        let user_id = Uuid::new_v4().to_hyphenated().to_string();
+        debug!("user_id = {:?}", user_id);
+        // TODO: save settings under /opt/hypercards/users/<user_id>/...
+        let mut wctx = CTX.write().unwrap();
+        *wctx = Ctx { args, user_id };
+    }
 
     // TODO: check for updates when asked:
     // reqwest JSON API equivalent of https://github.com/fenollp/reMarkable-tools/releases

@@ -15,10 +15,10 @@ services:
     - -m
     - '8222'
     - -DVV
-    ports:
-    - '127.0.0.1:4222:4222'
-    - '127.0.0.1:6222:6222'
-    - '127.0.0.1:8222:8222'
+    # ports:
+    # - '127.0.0.1:4222:4222'
+    # - '127.0.0.1:6222:6222'
+    # - '127.0.0.1:8222:8222'
 
   redis:
     image: redis:5-alpine
@@ -29,8 +29,8 @@ services:
     volumes:
     - ./redis/redis.conf:/etc/redis/redis.conf:ro
     command: redis-server /etc/redis/redis.conf
-    ports:
-    - '127.0.0.1:6379:6379'
+    # ports:
+    # - '127.0.0.1:6379:6379'
 
   http-server:
     depends_on:
