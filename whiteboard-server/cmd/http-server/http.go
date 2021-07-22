@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,12 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
+
+//go:embed nothing_to_see_here.png
+var defaultPNG []byte
+
+//go:embed screensharing_embedding_room.html
+var indexHTML string
 
 func init() {
 	hypercards.MustSetupLogging()
@@ -39,7 +46,7 @@ func main() {
 		log.Info(logReq(r))
 		log.Info("rendering page", zap.Any("vars", mux.Vars(r)))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, index)
+		fmt.Fprint(w, indexHTML)
 	})
 
 	// Image
@@ -60,6 +67,9 @@ func main() {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		data := rep.GetCanvasPng()
+		if len(data) == 0 {
+			data = defaultPNG
+		}
 		io.CopyN(w, bytes.NewReader(data), int64(len(data)))
 	})
 
@@ -86,43 +96,6 @@ func main() {
 	log.Info("shutting down")
 	os.Exit(0)
 }
-
-const index = `
-<!DOCTYPE html>
-<html lang="en" data-layout="responsive">
-	<head>
-		<meta charset="utf-8">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>reMarkable-tools · Live View HyperCard</title>
-		<style type="text/css">
-			#view {
-			    max-width: 100%;
-			    max-height: 100%;
-			    bottom: 0;
-			    left: 0;
-			    margin: auto;
-			    overflow: auto;
-			    position: fixed;
-			    right: 0;
-			    top: 0;
-			    -o-object-fit: contain;
-			    object-fit: contain;
-			}
-		</style>
-		<script type="text/javascript">
-			setInterval(function() {
-				var node = document.getElementById('view');
-				node.src = './s.png?nocache=' + Math.random();
-			}, 1000);
-		</script>
-	</head>
-	<body>
-		<div><img id="view" src="./s.png" alt="reMarkable whiteboard screen"/></div>
-		<!-- <br/><p>Find out more <a href="https://github.com/fenollp/reMarkable-tools">on GitHub</a></p> -->
-	</body>
-</html>
-`
 
 func logReq(r *http.Request) string {
 	return fmt.Sprintf(
