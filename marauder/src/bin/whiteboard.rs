@@ -175,8 +175,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.draw_elements();
 
     let appref1 = app.upgrade_ref();
-    spawn(async move {
-        paint_mouldings(appref1).await;
+    spawn_blocking(move || {
+        tokio::runtime::Handle::current().block_on(async move {
+            paint_mouldings(appref1).await;
+        });
     });
 
     let host = CTX.read().unwrap().args.flag_host.clone();
@@ -715,10 +717,7 @@ async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32
 async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let c = drawing::Color::Black;
     debug!("[paint_mouldings] drawing UI...");
-    let appref0 = app.upgrade_ref();
-    spawn(async move {
-        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
-    });
+    paint_vec(app, drawings::title_whiteboard::f(c)).await;
 
     let appref6 = app.upgrade_ref();
     spawn(async move {
@@ -729,15 +728,15 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
                     debug!("[qrcode] painting");
                     let fb = appref6.get_framebuffer_ref();
                     let region = mxcfb_rect {
-                        top: 1,
-                        left: TOOLBAR_REGION.width - (1 + qrcode.width()),
+                        top: 4,
+                        left: TOOLBAR_REGION.width - (4 + qrcode.width()),
                         height: qrcode.height(),
                         width: qrcode.width(),
                     };
                     fb.draw_image(qrcode, region.top_left().cast().unwrap());
                     fb.partial_refresh(
                         &region,
-                        PartialRefreshMode::Wait,
+                        PartialRefreshMode::Async,
                         waveform_mode::WAVEFORM_MODE_GC16,
                         display_temp::TEMP_USE_PAPYRUS,
                         dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
