@@ -99,7 +99,7 @@ struct Scribble {
 }
 
 const TOOLBAR_BAR_WIDTH: u32 = 2;
-const TOOLBAR_HEIGHT: u32 = TOOLBAR_BAR_WIDTH + 70; // TODO: make the top bar ~140
+const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
 const TOOLBAR_REGION: mxcfb_rect = mxcfb_rect {
     top: 0,
     left: 0,
@@ -181,7 +181,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let host = CTX.read().unwrap().args.flag_host.clone();
     info!("[main] connecting to {:?}...", host);
-    let ch = Endpoint::from_shared(host).unwrap().connect().await?;
+    let ch = Endpoint::from_shared(host)
+        .unwrap()
+        // .connect_timeout(Duration::from_secs(10)) // todo: upgrade tonic
+        .timeout(Duration::from_secs(4))
+        .connect()
+        .await?;
 
     let ch2 = ch.clone();
     let appref2 = app.upgrade_ref();
@@ -238,7 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let webhost = CTX.read().unwrap().args.flag_webhost.clone();
         let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
         debug!("[qrcoder] generating");
-        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 128).unwrap();
+        let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
         debug!("[qrcoder] loading");
         let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
         let img_rgb = img_rgb565.to_rgb();
@@ -710,8 +715,42 @@ async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32
 async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let c = drawing::Color::Black;
     debug!("[paint_mouldings] drawing UI...");
-    paint_vec(app, drawings::title_whiteboard::f(c)).await;
-    delay_for(INTER_DRAWING_PACE).await;
+    let appref0 = app.upgrade_ref();
+    spawn(async move {
+        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
+    });
+
+    let appref6 = app.upgrade_ref();
+    spawn(async move {
+        loop {
+            match QRCODE.read().unwrap().as_ref() {
+                None => (),
+                Some(qrcode) => {
+                    debug!("[qrcode] painting");
+                    let fb = appref6.get_framebuffer_ref();
+                    let region = mxcfb_rect {
+                        top: 1,
+                        left: TOOLBAR_REGION.width - (1 + qrcode.width()),
+                        height: qrcode.height(),
+                        width: qrcode.width(),
+                    };
+                    fb.draw_image(qrcode, region.top_left().cast().unwrap());
+                    fb.partial_refresh(
+                        &region,
+                        PartialRefreshMode::Wait,
+                        waveform_mode::WAVEFORM_MODE_GC16,
+                        display_temp::TEMP_USE_PAPYRUS,
+                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                        0,
+                        false,
+                    );
+                    debug!("[qrcode] done");
+                    break;
+                }
+            };
+        }
+    });
+
     let appref1 = app.upgrade_ref();
     spawn(async move {
         paint(appref1, top_bar(c)).await;
@@ -732,36 +771,6 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     spawn(async move {
         let count = PEOPLE_COUNT.load(Ordering::Relaxed);
         paint_people_counter(appref5, count, c).await;
-    });
-    let appref6 = app.upgrade_ref();
-    spawn(async move {
-        loop {
-            match QRCODE.read().unwrap().as_ref() {
-                None => (),
-                Some(qrcode) => {
-                    debug!("[qrcode] painting");
-                    let fb = appref6.get_framebuffer_ref();
-                    let (x0, y0) = (5, TOOLBAR_REGION.width - 2 * qrcode.width());
-                    fb.draw_image(&qrcode, cgmath::Point2 { x: x0, y: y0 }.cast().unwrap());
-                    fb.partial_refresh(
-                        &mxcfb_rect {
-                            top: x0,
-                            left: y0,
-                            height: qrcode.height(),
-                            width: qrcode.width(),
-                        },
-                        PartialRefreshMode::Async, //TODO: drop PartialRefreshMode::Wait,
-                        waveform_mode::WAVEFORM_MODE_GC16,
-                        display_temp::TEMP_USE_PAPYRUS,
-                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-                        0,
-                        false,
-                    );
-                    debug!("[qrcode] done");
-                    break;
-                }
-            };
-        }
     });
 }
 
