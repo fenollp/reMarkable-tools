@@ -69,6 +69,7 @@ func main() {
 		data := rep.GetCanvasPng()
 		if len(data) == 0 {
 			data = defaultPNG
+			log.Info(">>>", zap.Int("len(data)", len(data)))
 		}
 		io.CopyN(w, bytes.NewReader(data), int64(len(data)))
 	})
