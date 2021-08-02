@@ -67,23 +67,15 @@ struct Args {
     flag_host: String,
     flag_room: String,
     flag_webhost: String,
-    // TODO: here try user_id: String,
-}
-
-#[derive(Debug, Clone)]
-struct Ctx {
-    args: Args,
     user_id: String,
 }
 
-impl ::std::default::Default for Ctx {
+impl ::std::default::Default for Args {
     fn default() -> Self {
-        Ctx {
-            args: Args {
-                flag_host: "unset".to_string(),
-                flag_room: "unset".to_string(),
-                flag_webhost: "unset".to_string(),
-            },
+        Self {
+            flag_host: "unset".to_string(),
+            flag_room: "unset".to_string(),
+            flag_webhost: "unset".to_string(),
             user_id: "anon".to_string(),
         }
     }
@@ -125,7 +117,7 @@ lazy_static! {
     static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
     static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
     static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
-    static ref CTX: RwLock<Ctx> = RwLock::new(Default::default());
+    static ref ARGS: RwLock<Args> = RwLock::new(Default::default());
     static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
 }
 
@@ -136,17 +128,16 @@ const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let args: Args = Docopt::new(USAGE)
+    let mut args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
-    debug!("args = {:?}", args);
 
     {
-        let user_id = Uuid::new_v4().to_hyphenated().to_string();
-        debug!("user_id = {:?}", user_id);
+        args.user_id = Uuid::new_v4().to_hyphenated().to_string();
+        debug!("args = {:?}", args);
         // TODO: save settings under /opt/hypercards/users/<user_id>/...
-        let mut wctx = CTX.write().unwrap();
-        *wctx = Ctx { args, user_id };
+        let mut wargs = ARGS.write().unwrap();
+        *wargs = args;
     }
 
     // TODO: check for updates when asked:
@@ -181,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
-    let host = CTX.read().unwrap().args.flag_host.clone();
+    let host = ARGS.read().unwrap().flag_host.clone();
     info!("[main] connecting to {:?}...", host);
     let ch = Endpoint::from_shared(host)
         .unwrap()
@@ -242,8 +233,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("[qrcoder] spawn-ing");
     spawn(async move {
         info!("[qrcoder] spawn-ed");
-        let webhost = CTX.read().unwrap().args.flag_webhost.clone();
-        let url = webhost + "/" + &CTX.read().unwrap().args.flag_room + "/";
+        let webhost = ARGS.read().unwrap().flag_webhost.clone();
+        let url = webhost + "/" + &ARGS.read().unwrap().flag_room + "/";
         debug!("[qrcoder] generating");
         let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
         debug!("[qrcoder] loading");
@@ -522,10 +513,10 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
                             info!("[loop_screensharing] compressed!");
                             let bytes = compressed.len();
                             let mut req = Request::new(SendScreenReq {
-                                room_id: CTX.read().unwrap().args.flag_room.clone(),
+                                room_id: ARGS.read().unwrap().flag_room.clone(),
                                 screen_png: compressed,
                             });
-                            add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
+                            add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
                             debug!("[loop_screensharing] sending canvas");
                             match client.send_screen(req).await {
                                 Err(err) => error!("[loop_screensharing] !send: {:?}", err),
@@ -544,9 +535,9 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
 
 async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
     let mut req = Request::new(RecvEventsReq {
-        room_id: CTX.read().unwrap().args.flag_room.clone(),
+        room_id: ARGS.read().unwrap().flag_room.clone(),
     });
-    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
+    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
 
     info!("[loop_recv] creating stream");
     let mut client = WhiteboardClient::new(ch);
@@ -667,9 +658,9 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
     };
     let mut req = Request::new(SendEventReq {
         event: Some(event),
-        room_ids: vec![CTX.read().unwrap().args.flag_room.clone()],
+        room_ids: vec![ARGS.read().unwrap().flag_room.clone()],
     });
-    add_xuser(&mut req, CTX.read().unwrap().user_id.clone());
+    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
     info!("REQ = {:?}", req);
     let rep = client
         .send_event(req)
