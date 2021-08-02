@@ -131,11 +131,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
+    args.user_id = Uuid::new_v4().to_hyphenated().to_string();
+    debug!("args = {:?}", args);
+    // TODO: save settings under /opt/hypercards/users/<user_id>/...
 
     {
-        args.user_id = Uuid::new_v4().to_hyphenated().to_string();
-        debug!("args = {:?}", args);
-        // TODO: save settings under /opt/hypercards/users/<user_id>/...
         let mut wargs = ARGS.write().unwrap();
         *wargs = args;
     }
