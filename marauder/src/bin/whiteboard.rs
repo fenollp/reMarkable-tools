@@ -162,9 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
-    info!("[main] spawn-ing ch-er");
-    spawn(async move {
-        info!("[ch-er] spawn-ed");
+    {
         let host = ARGS.read().unwrap().flag_host.clone();
         info!("[main] using gRPC host: {:?}", host);
         let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_string();
@@ -177,8 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ch = endpoint.connect_lazy().unwrap();
         let mut wcher = CHER.write().unwrap();
         *wcher = Some(ch);
-        info!("[ch-er] done");
-    });
+    }
 
     let appref2 = app.upgrade_ref();
     info!("[main] spawn-ing loop_recv");
@@ -722,7 +719,11 @@ async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32
 async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let c = drawing::Color::Black;
     debug!("[paint_mouldings] drawing UI...");
-    paint_vec(app, drawings::title_whiteboard::f(c)).await;
+
+    let appref0 = app.upgrade_ref();
+    spawn(async move {
+        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
+    });
 
     let appref6 = app.upgrade_ref();
     spawn(async move {
