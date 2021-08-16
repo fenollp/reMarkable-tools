@@ -1,5 +1,4 @@
 use crc_any::CRC;
-use docopt::Docopt;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
@@ -29,7 +28,6 @@ use marauder::proto::hypercards::{drawing, event};
 use marauder::proto::hypercards::{Drawing, Event};
 use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
 use qrcode_generator::QrCodeEcc;
-use serde::Deserialize;
 use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::process::Command;
@@ -38,6 +36,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
 use std::sync::RwLock;
 use std::time::Duration;
+use structopt::StructOpt;
 use tokio::spawn;
 use tokio::task::spawn_blocking;
 use tokio::time::sleep;
@@ -46,27 +45,19 @@ use tonic::transport::Endpoint;
 use tonic::Request;
 use uuid::Uuid;
 
-const USAGE: &str = "
-reMarkable whiteboard HyperCard.
-
-Usage:
-  whiteboard [--room=<ROOM>] [--host=<HOST>] [--webhost=<WEBHOST>]
-  whiteboard (-h | --help)
-  whiteboard --version
-
-Options:
-  --host=<HOST>        gRPC server to connect to [default: http://fknwkdacd.com:10000].
-  --room=<ROOM>        Room to join [default: living-room].
-  --webhost=<WEBHOST>  Screen sharing HTTP server [default: http://fknwkdacd.com:18888/s].
-  -h --help            Show this screen.
-  --version            Show version.
-";
-
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, StructOpt)]
+#[structopt(name = "whiteboard", about = "reMarkable whiteboard HyperCard", version = env!("CARGO_PKG_VERSION"))]
 struct Args {
-    flag_host: String,
+    #[structopt(long = "room", default_value = "living-room")]
     flag_room: String,
+
+    #[structopt(long = "host", default_value = "http://fknwkdacd.com:10000")]
+    flag_host: String,
+
+    #[structopt(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
     flag_webhost: String,
+
+    #[structopt(skip)]
     user_id: String,
 }
 
@@ -129,9 +120,7 @@ const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
+    let mut args = Args::from_args();
     args.user_id = Uuid::new_v4().to_hyphenated().to_string();
     debug!("args = {:?}", args);
     // TODO: save settings under /opt/hypercards/users/<user_id>/...
