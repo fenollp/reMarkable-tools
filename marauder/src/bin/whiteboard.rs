@@ -40,7 +40,7 @@ use std::sync::RwLock;
 use std::time::Duration;
 use tokio::spawn;
 use tokio::task::spawn_blocking;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tonic::Request;
@@ -119,6 +119,7 @@ lazy_static! {
     static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
     static ref ARGS: RwLock<Args> = RwLock::new(Default::default());
     static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
+    static ref CHER: RwLock<Option<Channel>> = RwLock::new(None);
 }
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
@@ -172,38 +173,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
-    let host = ARGS.read().unwrap().flag_host.clone();
-    info!("[main] connecting to {:?}...", host);
-    let ch = Endpoint::from_shared(host)
-        .unwrap()
-        // .connect_timeout(Duration::from_secs(10)) // todo: upgrade tonic
-        .timeout(Duration::from_secs(4))
-        .connect()
-        .await?;
+    info!("[main] spawn-ing ch-er");
+    spawn(async move {
+        info!("[ch-er] spawn-ed");
+        let host = ARGS.read().unwrap().flag_host.clone();
+        info!("[main] using gRPC host: {:?}", host);
+        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_string();
+        let endpoint = Endpoint::from_shared(host)
+            .unwrap()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(4))
+            .user_agent(uaprexix + env!("CARGO_PKG_VERSION"))
+            .unwrap();
+        let ch = endpoint.connect_lazy().unwrap();
+        let mut wcher = CHER.write().unwrap();
+        *wcher = Some(ch);
+        info!("[ch-er] done");
+    });
 
-    let ch2 = ch.clone();
     let appref2 = app.upgrade_ref();
-    info!("[loop_recv] spawn-ing");
+    info!("[main] spawn-ing loop_recv");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
-            loop_recv(appref2, ch2).await;
+            loop {
+                let cher = CHER.read().unwrap();
+                if let Some(ch) = &*cher {
+                    loop_recv(appref2, ch.clone()).await;
+                    break;
+                }
+            }
             info!("[loop_recv] terminated");
         })
     });
 
-    let ch3 = ch.clone();
     let appref3 = app.upgrade_ref();
-    info!("[loop_screensharing] spawn-ing");
+    info!("[main] spawn-ing loop_screensharing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_screensharing] spawn-ed");
-            loop_screensharing(appref3, ch3).await;
+            loop {
+                let cher = CHER.read().unwrap();
+                if let Some(ch) = &*cher {
+                    loop_screensharing(appref3, ch.clone()).await;
+                    break;
+                }
+            }
             info!("[loop_screensharing] terminated");
         })
     });
 
-    info!("[TXer] spawn-ing");
+    info!("[main] spawn-ing TXer");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[TXer] spawn-ed");
@@ -215,22 +235,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *wtx = Some(tx.to_owned());
                 info!("[TXer] unlocked");
             }
-            let mut client = WhiteboardClient::new(ch);
             loop {
-                let rcvd = rx.recv();
-                debug!("[TXer] FWDing...");
-                match rcvd {
-                    Err(e) => error!("[TXer] failed to FWD: {:?}", e),
-                    Ok(drawing) => {
-                        send_drawing(&mut client, drawing).await;
-                        NEEDS_SHARING.store(true, Ordering::Relaxed);
+                let cher = CHER.read().unwrap();
+                if let Some(ch) = &*cher {
+                    let mut client = WhiteboardClient::new(ch.clone());
+                    loop {
+                        let rcvd = rx.recv();
+                        debug!("[TXer] FWDing...");
+                        match rcvd {
+                            Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+                            Ok(drawing) => {
+                                send_drawing(&mut client, drawing).await;
+                                NEEDS_SHARING.store(true, Ordering::Relaxed);
+                            }
+                        }
                     }
                 }
             }
         })
     });
 
-    info!("[qrcoder] spawn-ing");
+    info!("[main] spawn-ing qrcoder");
     spawn(async move {
         info!("[qrcoder] spawn-ed");
         let webhost = ARGS.read().unwrap().flag_webhost.clone();
@@ -476,7 +501,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
     let mut previous_checksum: u64 = 0;
     let (mut failsafe, wrapat) = (0, 10);
     loop {
-        delay_for(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(500)).await;
 
         failsafe += 1;
         let wrapped = failsafe == wrapat;
@@ -592,7 +617,7 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     assert!(xs.len() >= 3);
     for i in 0..(xs.len() - 2) {
         if i != 0 {
-            delay_for(DRAWING_PACE).await;
+            sleep(DRAWING_PACE).await;
         }
         let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
             // start
@@ -693,7 +718,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
     for (i, x) in xs.into_iter().enumerate() {
         if i != 0 {
-            delay_for(INTER_DRAWING_PACE).await;
+            sleep(INTER_DRAWING_PACE).await;
         }
         paint(app, x).await;
     }
@@ -791,7 +816,7 @@ async fn paint_glyph(
     let (x0, y0, k) = c0k;
     for (i, path) in glyph.iter().enumerate() {
         if i != 0 {
-            delay_for(INTER_DRAWING_PACE).await;
+            sleep(INTER_DRAWING_PACE).await;
         }
         let drawing: Vec<Drawing> = path
             .iter()
