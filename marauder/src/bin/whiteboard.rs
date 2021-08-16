@@ -722,7 +722,13 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
 
     let appref0 = app.upgrade_ref();
     spawn(async move {
-        paint_vec(appref0, drawings::title_whiteboard::f(c)).await;
+        let mut parts = drawings::title_whiteboard::f(c);
+        for part in &mut parts {
+            for w in &mut part.widths {
+                *w /= 2;
+            }
+        }
+        paint_vec(appref0, parts).await;
     });
 
     let appref6 = app.upgrade_ref();
