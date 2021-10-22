@@ -1,13 +1,14 @@
 .PHONY: debug
 
-# rustup target add armv7-unknown-linux-musleabihf --toolchain=nightly
 # cargo install cross
 
 # TARGET ?= armv7-unknown-linux-musleabihf
 TARGET ?= armv7-unknown-linux-gnueabihf
 EXE = marauder
 BIN = ./target/$(TARGET)/release/$(EXE)
+
 DEVICE ?= remarkable
+
 RUN ?= docker run --rm --user $$(id -u):$$(id -g)
 FLATC ?= $(RUN) -v "$$PWD"/src:/src -v "$$PWD"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
 

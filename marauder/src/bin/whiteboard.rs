@@ -1,6 +1,5 @@
 use crc_any::CRC;
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -27,6 +26,7 @@ use marauder::proto::hypercards::SendScreenReq;
 use marauder::proto::hypercards::{drawing, event};
 use marauder::proto::hypercards::{Drawing, Event};
 use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
+use once_cell::sync::Lazy;
 use qrcode_generator::QrCodeEcc;
 use std::collections::VecDeque;
 use std::convert::TryInto;
@@ -99,19 +99,17 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
 type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
 
-lazy_static! {
-    static ref PEOPLE_COUNT: AtomicU32 = AtomicU32::new(0);
-    static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_HISTORY: Mutex<VecDeque<PosNpress>> = Mutex::new(VecDeque::new());
-    static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
-    static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
-    static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
-    static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
-    static ref ARGS: RwLock<Args> = RwLock::new(Default::default());
-    static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
-    static ref CHER: RwLock<Option<Channel>> = RwLock::new(None);
-}
+static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
+static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
+static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static TX: Lazy<Mutex<Option<std::sync::mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
+static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
+static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
+static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
+static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
+static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);

@@ -1,7 +1,4 @@
 #[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
 extern crate log;
 extern crate env_logger;
 
@@ -28,6 +25,7 @@ use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementHandle;
 use libremarkable::ui_extensions::element::UIElementWrapper;
+use once_cell::sync::Lazy;
 // use rand::Rng;
 use marauder::modes::draw::DrawMode;
 use marauder::modes::touch::TouchMode;
@@ -52,17 +50,17 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     width: 1404,
 };
 
-lazy_static! {
-    static ref G_TOUCH_MODE: Atomic<TouchMode> = Atomic::new(TouchMode::OnlyUI);
-    static ref G_DRAW_MODE: Atomic<DrawMode> = Atomic::new(DrawMode::default());
-    static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_HISTORY: Mutex<VecDeque<(cgmath::Point2<f32>, i32)>> =
-        Mutex::new(VecDeque::new());
-    static ref DRAWING: AtomicBool = AtomicBool::new(false);
-    static ref SAVED_CANVAS: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
-    static ref SAVED_CANVAS_PREV: Mutex<Option<storage::CompressedCanvasState>> = Mutex::new(None);
-}
+static G_TOUCH_MODE: Lazy<Atomic<TouchMode>> = Lazy::new(|| Atomic::new(TouchMode::OnlyUI));
+static G_DRAW_MODE: Lazy<Atomic<DrawMode>> = Lazy::new(|| Atomic::new(DrawMode::default()));
+static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_HISTORY: Lazy<Mutex<VecDeque<(cgmath::Point2<f32>, i32)>>> =
+    Lazy::new(|| Mutex::new(VecDeque::new()));
+static DRAWING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static SAVED_CANVAS: Lazy<Mutex<Option<storage::CompressedCanvasState>>> =
+    Lazy::new(|| Mutex::new(None));
+static SAVED_CANVAS_PREV: Lazy<Mutex<Option<storage::CompressedCanvasState>>> =
+    Lazy::new(|| Mutex::new(None));
 
 // ####################
 // ## Button Handlers
