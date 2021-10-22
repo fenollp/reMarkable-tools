@@ -2,8 +2,10 @@
 
 # cargo install cross
 
-# TARGET ?= armv7-unknown-linux-musleabihf
+# TARGET ?= armv7-unknown-linux-musleabihf TODO https://github.com/canselcik/libremarkable/issues/65
 TARGET ?= armv7-unknown-linux-gnueabihf
+LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
+
 EXE = marauder
 BIN = ./target/$(TARGET)/release/$(EXE)
 
@@ -23,13 +25,13 @@ lint: fmt
 	cross clippy --target=$(TARGET) #-- -W clippy::pedantic
 
 test: fmt test-ujipenchars2
-	cargo test --target=$$(rustc -Vv | grep host: | cut -c7-)
+	cargo test --target=$$($(LOCAL_TARGET))
 
 ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
 ujipenchars2.txt:
 	curl -fSLo $@ $(url)
 test-ujipenchars2: ujipenchars2.txt
-	cargo run --target=$$(rustc -Vv | grep host: | cut -c7-) --bin ujipenchars $^
+	cargo run --target=$$($(LOCAL_TARGET)) --bin ujipenchars $^
 
 update:
 	cargo update
@@ -49,4 +51,4 @@ whiteboard: fmt
 	cross build --target=$(TARGET) --release --bin $(EXE) #--locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress $(BIN) $(DEVICE):
-	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=$(HOST) --webhost=$(WEBHOST) | tail -f'
+	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug LD_PRELOAD=$$(echo $$HOME/librm2fb_client.so.*) ./$(EXE) --host=$(HOST) --webhost=$(WEBHOST) | tail -f'

@@ -10,6 +10,7 @@ use libremarkable::framebuffer::storage;
 use libremarkable::framebuffer::FramebufferDraw;
 use libremarkable::framebuffer::FramebufferIO;
 use libremarkable::framebuffer::FramebufferRefresh;
+use libremarkable::image;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
