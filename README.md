@@ -181,3 +181,9 @@ https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
 https://oeis.org/A088218
 
 https://mlajtos.mu/posts/new-kind-of-paper
+
+https://github.com/n8n-io/n8n
+
+https://www.bit-101.com/blog/2021/08/chaikins-algorithm-drawing-curves/
+
+https://github.com/bkirwi/armrest

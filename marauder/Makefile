@@ -2,8 +2,9 @@
 
 # cargo install cross
 
-# TARGET ?= armv7-unknown-linux-musleabihf TODO https://github.com/canselcik/libremarkable/issues/65
-TARGET ?= armv7-unknown-linux-gnueabihf
+# TARGET ?= armv7-unknown-linux-gnueabihf
+#TODO https://github.com/canselcik/libremarkable/issues/65 for armv7-unknown-linux-musleabihf
+TARGET ?= armv7-unknown-linux-musleabihf
 LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
 EXE = marauder
