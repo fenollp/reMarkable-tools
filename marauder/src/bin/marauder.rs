@@ -50,12 +50,13 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     width: 1404,
 };
 
+type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
+
 static G_TOUCH_MODE: Lazy<Atomic<TouchMode>> = Lazy::new(|| Atomic::new(TouchMode::OnlyUI));
 static G_DRAW_MODE: Lazy<Atomic<DrawMode>> = Lazy::new(|| Atomic::new(DrawMode::default()));
 static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static WACOM_HISTORY: Lazy<Mutex<VecDeque<(cgmath::Point2<f32>, i32)>>> =
-    Lazy::new(|| Mutex::new(VecDeque::new()));
+static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static DRAWING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static SAVED_CANVAS: Lazy<Mutex<Option<storage::CompressedCanvasState>>> =
     Lazy::new(|| Mutex::new(None));
