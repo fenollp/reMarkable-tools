@@ -182,9 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    loop_recv(appref2, ch.clone()).await;
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    loop_recv(appref2, ch).await;
                     break;
                 }
             }
@@ -198,9 +197,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_screensharing] spawn-ed");
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    loop_screensharing(appref3, ch.clone()).await;
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    loop_screensharing(appref3, ch).await;
                     break;
                 }
             }
@@ -221,9 +219,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("[TXer] unlocked");
             }
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    let mut client = WhiteboardClient::new(ch.clone());
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    let mut client = WhiteboardClient::new(ch);
                     loop {
                         let rcvd = rx.recv();
                         debug!("[TXer] FWDing...");
