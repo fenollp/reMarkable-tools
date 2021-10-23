@@ -34,6 +34,7 @@ use std::convert::TryInto;
 use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 use std::sync::Mutex;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -105,7 +106,7 @@ static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false))
 static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
-static TX: Lazy<Mutex<Option<std::sync::mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
+static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
 static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
 static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
@@ -210,8 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[TXer] spawn-ed");
-            let (tx, rx) = std::sync::mpsc::channel();
-            //TODO: let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::channel();
             {
                 info!("[TXer] locking");
                 let mut wtx = TX.lock().unwrap();
@@ -397,26 +397,22 @@ fn maybe_send_drawing() {
     };
 
     debug!("locking TX");
-    let wtx = TX.lock().unwrap();
-    match &*wtx {
-        Some(ref tx) => {
-            let drawing = Drawing {
-                xs,
-                ys,
-                pressures: ps,
-                widths: ws,
-                color: col as i32,
-            };
-            tx.send(drawing).unwrap();
-        }
-        e => error!("e = {:?}", e),
-    };
-    debug!("unlocked TX");
+    if let Some(ref tx) = *TX.lock().unwrap() {
+        let drawing = Drawing {
+            xs,
+            ys,
+            pressures: ps,
+            widths: ws,
+            color: col as i32,
+        };
+        tx.send(drawing).unwrap();
+        debug!("unlocked TX");
+    }
     scribbles.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
-    debug!("[on_tch]");
+fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+    debug!("[on_tch] {:?}", input);
 }
 
 fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
