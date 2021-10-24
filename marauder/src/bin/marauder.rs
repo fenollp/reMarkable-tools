@@ -144,7 +144,9 @@ fn on_zoom_out(app: &mut ApplicationContext, _element: UIElementHandle) {
             new_image.invert();
 
             // Copy the resized image into the subimage
-            new_image.copy_from(&resized, CANVAS_REGION.width / 8, CANVAS_REGION.height / 8);
+            new_image
+                .copy_from(&resized, CANVAS_REGION.width / 8, CANVAS_REGION.height / 8)
+                .unwrap();
 
             framebuffer.draw_image(
                 new_image.as_rgb8().unwrap(),

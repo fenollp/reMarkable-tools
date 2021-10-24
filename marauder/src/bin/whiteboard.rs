@@ -246,7 +246,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
         debug!("[qrcoder] loading");
         let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
-        let img_rgb = img_rgb565.to_rgb();
+        let img_rgb = img_rgb565.to_rgb8();
         let mut wqrcode = QRCODE.write().unwrap();
         *wqrcode = Some(img_rgb);
         info!("[qrcoder] done");
@@ -510,7 +510,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
                 {
                     let img = image::DynamicImage::ImageRgb8(img0);
                     let mut compressed = Vec::with_capacity(50_000);
-                    match img.write_to(&mut compressed, image::ImageOutputFormat::PNG) {
+                    match img.write_to(&mut compressed, image::ImageOutputFormat::Png) {
                         Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
                         Ok(()) => {
                             info!("[loop_screensharing] compressed!");
