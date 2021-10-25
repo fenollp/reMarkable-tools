@@ -1,6 +1,7 @@
+name: CI
 on: [push, pull_request]
-
-name: Continuous integration
+env:
+  TARGET: armv7-unknown-linux-gnueabihf
 
 jobs:
   check:
@@ -11,15 +12,15 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
-        target: armv7-unknown-linux-gnueabihf
+        toolchain: stable
+        target: ${{ env.TARGET }}
         override: true
         components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
         use-cross: true
-        args: --target armv7-unknown-linux-gnueabihf
+        args: --target ${{ env.TARGET }}
         command: check
 
   test:
@@ -30,15 +31,15 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
-        target: armv7-unknown-linux-gnueabihf
+        toolchain: stable
+        target: ${{ env.TARGET }}
         override: true
         components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
         use-cross: true
-        args: --target armv7-unknown-linux-gnueabihf
+        args: --target ${{ env.TARGET }}
         command: test
 
   fmt:
@@ -49,8 +50,8 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
-        target: armv7-unknown-linux-gnueabihf
+        toolchain: stable
+        target: ${{ env.TARGET }}
         override: true
         components: rustfmt
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
@@ -67,13 +68,13 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
-        target: armv7-unknown-linux-gnueabihf
+        toolchain: stable
+        target: ${{ env.TARGET }}
         override: true
         components: rustfmt, clippy
     - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
       with:
         working-directory: marauder
         use-cross: true
-        args: --target armv7-unknown-linux-gnueabihf -- -D warnings
+        args: --target ${{ env.TARGET }} -- -D warnings
         command: clippy
