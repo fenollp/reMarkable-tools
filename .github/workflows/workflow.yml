@@ -9,18 +9,17 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly # TODO: stable once const-fn is in
         target: armv7-unknown-linux-musleabihf
         override: true
         components: rustfmt
     # TODO: following fails with   error occurred: Failed to find tool. Is `arm-linux-gnueabihf-gcc` installed?
-    # - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
-    #   with:
-    #     use-cross: true
-    #     command: build
-    #     working-directory: marauder
-    #     args: --release --frozen --locked --offline --target armv7-unknown-linux-musleabihf
-    #   continue-on-error: true
+    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+      with:
+        working-directory: marauder
+        use-cross: true
+        command: build
+        args: --target armv7-unknown-linux-musleabihf --release --bin whiteboard --locked #--frozen #--offline
+      # continue-on-error: true
 
   whiteboard_hypercard:
     name: Whiteboard HyperCard
@@ -29,7 +28,6 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
