@@ -22,7 +22,7 @@ jobs:
       # continue-on-error: true
 
   whiteboard_hypercard:
-    name: Whiteboard HyperCard
+    name: with libc
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
