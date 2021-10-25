@@ -9,6 +9,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
+        profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-musleabihf
         override: true
         components: rustfmt
@@ -28,6 +30,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
+        profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt

@@ -11,6 +11,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
@@ -29,6 +30,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
@@ -47,6 +49,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt
@@ -64,6 +67,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
+        toolchain: default
         target: armv7-unknown-linux-gnueabihf
         override: true
         components: rustfmt, clippy
