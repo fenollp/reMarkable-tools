@@ -1,7 +1,7 @@
 GPB ?= 3.6.1
 GPB_IMG ?= znly/protoc:0.4.0
 
-COMPOSE ?= docker-compose
+COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose
 RUN ?= docker run --rm --user $$(id -u):$$(id -g)
 PROTOC ?= $(RUN) -v "$$PWD/../:$$PWD/../" -w "$$PWD" $(GPB_IMG)
 PROTOLOCK ?= $(RUN) -v $$PWD/../:/protolock -w /protolock nilslice/protolock  # commit --force
