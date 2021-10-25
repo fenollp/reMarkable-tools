@@ -1,6 +1,5 @@
 use crc_any::CRC;
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -11,6 +10,7 @@ use libremarkable::framebuffer::storage;
 use libremarkable::framebuffer::FramebufferDraw;
 use libremarkable::framebuffer::FramebufferIO;
 use libremarkable::framebuffer::FramebufferRefresh;
+use libremarkable::image;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
@@ -27,12 +27,14 @@ use marauder::proto::hypercards::SendScreenReq;
 use marauder::proto::hypercards::{drawing, event};
 use marauder::proto::hypercards::{Drawing, Event};
 use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
+use once_cell::sync::Lazy;
 use qrcode_generator::QrCodeEcc;
 use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 use std::sync::Mutex;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -99,19 +101,17 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
 type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
 
-lazy_static! {
-    static ref PEOPLE_COUNT: AtomicU32 = AtomicU32::new(0);
-    static ref UNPRESS_OBSERVED: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_IN_RANGE: AtomicBool = AtomicBool::new(false);
-    static ref WACOM_HISTORY: Mutex<VecDeque<PosNpress>> = Mutex::new(VecDeque::new());
-    static ref SCRIBBLES: Mutex<Vec<Scribble>> = Mutex::new(Vec::new());
-    static ref TX: Mutex<Option<std::sync::mpsc::Sender<Drawing>>> = Mutex::new(None);
-    static ref FONT: fonts::Font = fonts::emsdelight_swash_caps().unwrap();
-    static ref NEEDS_SHARING: AtomicBool = AtomicBool::new(true);
-    static ref ARGS: RwLock<Args> = RwLock::new(Default::default());
-    static ref QRCODE: RwLock<Option<SomeRawImage>> = RwLock::new(None);
-    static ref CHER: RwLock<Option<Channel>> = RwLock::new(None);
-}
+static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
+static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
+static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
+static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
+static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
+static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
+static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
+static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -183,9 +183,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    loop_recv(appref2, ch.clone()).await;
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    loop_recv(appref2, ch).await;
                     break;
                 }
             }
@@ -199,9 +198,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_screensharing] spawn-ed");
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    loop_screensharing(appref3, ch.clone()).await;
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    loop_screensharing(appref3, ch).await;
                     break;
                 }
             }
@@ -213,8 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[TXer] spawn-ed");
-            let (tx, rx) = std::sync::mpsc::channel();
-            //TODO: let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::channel();
             {
                 info!("[TXer] locking");
                 let mut wtx = TX.lock().unwrap();
@@ -222,9 +219,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("[TXer] unlocked");
             }
             loop {
-                let cher = CHER.read().unwrap();
-                if let Some(ch) = &*cher {
-                    let mut client = WhiteboardClient::new(ch.clone());
+                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
+                    let mut client = WhiteboardClient::new(ch);
                     loop {
                         let rcvd = rx.recv();
                         debug!("[TXer] FWDing...");
@@ -250,7 +246,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
         debug!("[qrcoder] loading");
         let img_rgb565 = image::load_from_memory(&qrcode).unwrap();
-        let img_rgb = img_rgb565.to_rgb();
+        let img_rgb = img_rgb565.to_rgb8();
         let mut wqrcode = QRCODE.write().unwrap();
         *wqrcode = Some(img_rgb);
         info!("[qrcoder] done");
@@ -401,26 +397,22 @@ fn maybe_send_drawing() {
     };
 
     debug!("locking TX");
-    let wtx = TX.lock().unwrap();
-    match &*wtx {
-        Some(ref tx) => {
-            let drawing = Drawing {
-                xs,
-                ys,
-                pressures: ps,
-                widths: ws,
-                color: col as i32,
-            };
-            tx.send(drawing).unwrap();
-        }
-        e => error!("e = {:?}", e),
-    };
-    debug!("unlocked TX");
+    if let Some(ref tx) = *TX.lock().unwrap() {
+        let drawing = Drawing {
+            xs,
+            ys,
+            pressures: ps,
+            widths: ws,
+            color: col as i32,
+        };
+        tx.send(drawing).unwrap();
+        debug!("unlocked TX");
+    }
     scribbles.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, _input: multitouch::MultitouchEvent) {
-    debug!("[on_tch]");
+fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+    debug!("[on_tch] {:?}", input);
 }
 
 fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
@@ -518,7 +510,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
                 {
                     let img = image::DynamicImage::ImageRgb8(img0);
                     let mut compressed = Vec::with_capacity(50_000);
-                    match img.write_to(&mut compressed, image::ImageOutputFormat::PNG) {
+                    match img.write_to(&mut compressed, image::ImageOutputFormat::Png) {
                         Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
                         Ok(()) => {
                             info!("[loop_screensharing] compressed!");

@@ -8,5 +8,5 @@ docker run \
        -v /tmp:/tmp \
        -w "$PWD" \
        znly/protoc:0.4.0 \
-       --proto_path=$PWD/ \
+       --proto_path="$PWD"/ \
        "$@"
