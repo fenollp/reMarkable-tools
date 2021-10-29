@@ -21,10 +21,16 @@
 			}
 		</style>
 		<script type="text/javascript">
+			var refreshAfterMs = 1000;
+			for (const [key, value] of new URLSearchParams(window.location.search)) {
+				if (key === "refreshAfterMs") {
+					refreshAfterMs = parseInt(value);
+				}
+			}
 			setInterval(function() {
 				var node = document.getElementById('view');
 				node.src = './s.png?nocache=' + Math.random();
-			}, 1000);
+			}, refreshAfterMs);
 		</script>
 	</head>
 	<body>
