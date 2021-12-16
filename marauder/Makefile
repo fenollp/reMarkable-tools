@@ -2,9 +2,7 @@
 
 # cargo install cross
 
-TARGET ?= armv7-unknown-linux-gnueabihf
-#TODO https://github.com/canselcik/libremarkable/issues/65 for armv7-unknown-linux-musleabihf
-# TARGET ?= armv7-unknown-linux-musleabihf
+TARGET ?= armv7-unknown-linux-musleabihf
 LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
 EXE = marauder
@@ -52,4 +50,4 @@ whiteboard: fmt
 	cross build --target=$(TARGET) --release --bin $(EXE) #--locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress $(BIN) $(DEVICE):
-	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug LD_PRELOAD=$$(echo /opt/lib/librm2fb_client.so.*) ./$(EXE) --host=$(HOST) --webhost=$(WEBHOST) | tail -f'
+	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) --host=$(HOST) --webhost=$(WEBHOST) | tail -f'

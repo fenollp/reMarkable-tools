@@ -107,7 +107,7 @@ static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
-static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
+static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap()); // TODO: const fn
 static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
@@ -172,9 +172,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .timeout(Duration::from_secs(4))
             .user_agent(uaprexix + env!("CARGO_PKG_VERSION"))
             .unwrap();
-        let ch = endpoint.connect_lazy().unwrap();
         let mut wcher = CHER.write().unwrap();
-        *wcher = Some(ch);
+        *wcher = Some(endpoint.connect_lazy());
     }
 
     let appref2 = app.upgrade_ref();
@@ -674,23 +673,25 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
 
 async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: drawing::Color) {
     let digit = match count {
-        0 => FONT.get("0").unwrap(),
-        1 => FONT.get("1").unwrap(),
-        2 => FONT.get("2").unwrap(),
-        3 => FONT.get("3").unwrap(),
-        4 => FONT.get("4").unwrap(),
-        5 => FONT.get("5").unwrap(),
-        6 => FONT.get("6").unwrap(),
-        7 => FONT.get("7").unwrap(),
-        8 => FONT.get("8").unwrap(),
-        9 => FONT.get("9").unwrap(),
+        0 => FONT.get("0"),
+        1 => FONT.get("1"),
+        2 => FONT.get("2"),
+        3 => FONT.get("3"),
+        4 => FONT.get("4"),
+        5 => FONT.get("5"),
+        6 => FONT.get("6"),
+        7 => FONT.get("7"),
+        8 => FONT.get("8"),
+        9 => FONT.get("9"),
         _ => {
             info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", count);
-            FONT.get("9").unwrap()
+            FONT.get("9")
         }
-    };
+    }
+    .unwrap();
 
-    paint_glyph(app, digit, (-15000., -150., 0.085), 3992, 3, color).await;
+    let at = (-15000., -150., 0.085);
+    paint_glyph(app, digit, at, 3992, 3, color).await;
 }
 
 async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {

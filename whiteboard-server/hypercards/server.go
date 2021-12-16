@@ -3,6 +3,7 @@ package hypercards
 import (
 	"context"
 	"os"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -46,9 +47,15 @@ func NewServer(ctx context.Context, onlyRedis bool) (srv *Server, err error) {
 
 	}
 
+	var redisDB int
+	if redisDB, err = strconv.Atoi(os.Getenv("REDIS_DB")); err != nil {
+		return
+	}
 	if err = srv.setupRedis(ctx,
 		os.Getenv("REDIS_HOST"),
 		os.Getenv("REDIS_PORT"),
+		os.Getenv("REDIS_PASSWORD"),
+		redisDB,
 	); err != nil {
 		return
 	}

@@ -22,14 +22,14 @@ func (srv *Server) red(ctx context.Context) *redisClient {
 	return &redisClient{srv.rc.WithContext(ctx)}
 }
 
-func (srv *Server) setupRedis(ctx context.Context, host, port string) (err error) {
+func (srv *Server) setupRedis(ctx context.Context, host, port, password string, db int) (err error) {
 	log := NewLogFromCtx(ctx)
 	redisHost := host + ":" + port
 	log.Info("connecting to redis", zap.String("host", redisHost))
 	srv.rc = &redisClient{redis.NewClient(&redis.Options{
 		Addr:     redisHost,
-		Password: "", // no password set
-		DB:       0,  // use default DB
+		Password: password,
+		DB:       db,
 	})}
 	start := time.Now()
 	if _, err = srv.red(ctx).Ping(ctx).Result(); err != nil {

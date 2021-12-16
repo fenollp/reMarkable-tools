@@ -11,3 +11,7 @@ lint:
 
 clean:
 	$(COMPOSE) down
+
+update:
+	$(MAKE) $@ -C marauder
+	$(MAKE) $@ -C whiteboard-server

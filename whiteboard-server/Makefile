@@ -20,6 +20,7 @@ update:
 	go mod tidy
 	go mod verify
 	$(COMPOSE) pull --ignore-pull-failures
+	$(COMPOSE) build http-server grpc-server
 
 hypercards/whiteboard.pb.go: ../marauder/proto/hypercard/whiteboard.proto
 	$(PROTOC) -I=.. --go_out=plugins=grpc:. $^

@@ -1,11 +1,8 @@
 [package]
 name = "marauder"
-version = "0.3.4"
+version = "0.4.0"
 authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
-edition = "2018"
-
-[profile.release]
-lto = "thin" # "fat" xor "thin". "thin" is faster but crashes on some binaries
+edition = "2021"
 
 [dependencies]
 atomic = "^0"
@@ -21,8 +18,8 @@ log = "^0"
 nom = "5"
 rand = "^0"
 
-tonic = { version = "0.5", features = ["compression"] }
-prost = "0.8"
+tonic = { version = "0.6", features = ["compression"] }
+prost = "0.9"
 tokio = { version = "1.0", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
 async-stream = "0.3"
@@ -41,4 +38,4 @@ crc-any = { version = "2", default-features = false, features = ["heapless"] }
 qrcode-generator = "4"
 
 [build-dependencies]
-tonic-build = { version = "0.5", features = ["compression"] }
+tonic-build = { version = "0.6", features = ["compression"] }
