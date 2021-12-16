@@ -17,7 +17,7 @@ opkg update && opkg install whiteboard-hypercard
 
 On a machine with IP `1.2.3.4` reachable over the Internet, run:
 ```
-git clone https://github.com/fenollp/reMarkable-tools.git && cd reMarkable-tools && DOCKER_BUILDKIT=1 docker-compose up --build --abort-on-container-exit
+git clone https://github.com/fenollp/reMarkable-tools.git && cd reMarkable-tools && make debug
 ```
 Now on your tablet, run the `whiteboard` Rust application with `--host`, as in:
 ```
