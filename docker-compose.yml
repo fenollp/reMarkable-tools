@@ -26,6 +26,8 @@ services:
       # Only here so refs can be bound
       _1: &REDIS_HOST 'redis'
       _2: &REDIS_PORT '6379'
+      _3: &REDIS_PASSWORD '' # default
+      _4: &REDIS_DB '0' # default
     volumes:
     - ./redis/redis.conf:/etc/redis/redis.conf:ro
     command: redis-server /etc/redis/redis.conf
@@ -47,6 +49,8 @@ services:
       PATH_PREFIX: /s
       REDIS_HOST: *REDIS_HOST
       REDIS_PORT: *REDIS_PORT
+      REDIS_PASSWORD: *REDIS_PASSWORD
+      REDIS_DB: *REDIS_DB
     ports:
     - '18888:18888'
 
@@ -67,6 +71,8 @@ services:
       NATS_PASS: *NATS_PASS
       REDIS_HOST: *REDIS_HOST
       REDIS_PORT: *REDIS_PORT
+      REDIS_PASSWORD: *REDIS_PASSWORD
+      REDIS_DB: *REDIS_DB
       GRPC_GO_LOG_SEVERITY_LEVEL: info
       GRPC_GO_LOG_VERBOSITY_LEVEL: 99
     ports:
