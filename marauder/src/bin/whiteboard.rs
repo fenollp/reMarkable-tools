@@ -172,9 +172,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .timeout(Duration::from_secs(4))
             .user_agent(uaprexix + env!("CARGO_PKG_VERSION"))
             .unwrap();
-        let ch = endpoint.connect_lazy().unwrap();
         let mut wcher = CHER.write().unwrap();
-        *wcher = Some(ch);
+        *wcher = Some(endpoint.connect_lazy());
     }
 
     let appref2 = app.upgrade_ref();
