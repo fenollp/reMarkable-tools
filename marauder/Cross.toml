@@ -1,0 +1,17 @@
+[target.armv7-unknown-linux-gnueabihf]
+rustflags = [
+    "-C", "link-arg=-march=armv7-a",
+    "-C", "link-arg=-marm",
+    "-C", "link-arg=-mfpu=neon",
+    "-C", "link-arg=-mfloat-abi=hard",
+    "-C", "link-arg=-mcpu=cortex-a9",
+]
+
+[target.armv7-unknown-linux-musleabihf]
+rustflags = [
+    "-C", "link-arg=-march=armv7-a",
+    "-C", "link-arg=-marm",
+    "-C", "link-arg=-mfpu=neon",
+    "-C", "link-arg=-mfloat-abi=hard",
+    "-C", "link-arg=-mcpu=cortex-a9",
+]
