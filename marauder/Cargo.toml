@@ -4,9 +4,6 @@ version = "0.4.0"
 authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
 edition = "2021"
 
-[profile.release]
-lto = "thin" # "fat" xor "thin". "thin" is faster but crashes on some binaries
-
 [dependencies]
 atomic = "^0"
 chrono = "^0"
