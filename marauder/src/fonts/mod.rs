@@ -63,6 +63,7 @@ pub fn emsdelight_swash_caps() -> Result<Font, DeError> {
             // when we should be painting Bezier curves from SVG paths...
             // Anyway let's skip the less basic path instructions (other than M L)
             // c.f. https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+            // TODO: use https://github.com/RazrFalcon/svgtypes/blob/c3d5c37a2ff939b202c547f3bac8d1a924a4fdcf/src/path.rs
             if d.contains('C') {
                 continue;
             }
