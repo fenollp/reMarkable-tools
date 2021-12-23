@@ -116,13 +116,26 @@ static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
+fn maybe_from_env(val: &mut String, var: &str) {
+    match std::env::var(var) {
+        Ok(newval) => {
+            info!("using {:?} from env: {:?}", var, newval);
+            *val = newval;
+        }
+        Err(_) => {}
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let mut args = Args::from_args();
     args.user_id = Uuid::new_v4().to_hyphenated().to_string();
-    debug!("args = {:?}", args);
+    maybe_from_env(&mut args.flag_room, "WHITEBOARD_ROOM");
+    maybe_from_env(&mut args.flag_host, "WHITEBOARD_HOST");
+    maybe_from_env(&mut args.flag_webhost, "WHITEBOARD_WEBHOST");
+    info!("args = {:?}", args);
     // TODO: save settings under /opt/hypercards/users/<user_id>/...
 
     {
