@@ -21,6 +21,7 @@ git clone https://github.com/fenollp/reMarkable-tools.git && cd reMarkable-tools
 ```
 Now on your tablet, run the `whiteboard` Rust application with `--host`, as in:
 ```
+export WHITEBOARD_WEBHOST=http://1.2.3.4:10001/screenshare
 .../whiteboard --host=http://1.2.3.4:10000
 ```
 Finally, `docker-compose` should show you something akin to:
