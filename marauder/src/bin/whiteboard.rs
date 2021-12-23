@@ -117,12 +117,9 @@ const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
 fn maybe_from_env(val: &mut String, var: &str) {
-    match std::env::var(var) {
-        Ok(newval) => {
-            info!("using {:?} from env: {:?}", var, newval);
-            *val = newval;
-        }
-        Err(_) => {}
+    if let Ok(newval) = std::env::var(var) {
+        info!("using {:?} from env: {:?}", var, newval);
+        *val = newval;
     }
 }
 
