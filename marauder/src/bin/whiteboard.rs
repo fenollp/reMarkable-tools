@@ -1,5 +1,6 @@
 use crc_any::CRC;
 use itertools::Itertools;
+use libremarkable::appctx;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::framebuffer::cgmath;
 use libremarkable::framebuffer::cgmath::EuclideanSpace;
@@ -14,6 +15,7 @@ use libremarkable::image;
 use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
+use libremarkable::input::InputEvent;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementWrapper;
@@ -146,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DL + decompress + checksum + chmod + move + execve
     // unless version is current
 
-    let mut app: ApplicationContext = ApplicationContext::new(on_btn, on_pen, on_tch);
+    let mut app: appctx::ApplicationContext<'_> = appctx::ApplicationContext::default();
     app.clear(true);
 
     app.add_element(
@@ -262,7 +264,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     info!("Init complete. Beginning event dispatch...");
-    app.dispatch_events(true, true, true);
+    app.start_event_loop(true, true, true, |ctx, evt| match evt {
+        InputEvent::WacomEvent { event } => on_pen(ctx, event),
+        InputEvent::MultitouchEvent { event } => on_tch(ctx, event),
+        InputEvent::GPIO { event } => on_btn(ctx, event),
+        InputEvent::Unknown {} => {}
+    });
 
     Ok(())
 }
