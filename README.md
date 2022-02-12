@@ -24,7 +24,7 @@ Now on your tablet, run the `whiteboard` Rust application with `--host`, as in:
 export WHITEBOARD_WEBHOST=http://1.2.3.4:10001/screenshare
 .../whiteboard --host=http://1.2.3.4:10000
 ```
-Finally, `docker-compose` should show you something akin to:
+Finally, `docker compose` should show you something akin to:
 ```
 nats_1        | [1] 2020/11/03 14:26:24.435123 [DBG] 172.20.0.3:60308 - cid:1 - Client Ping Timer
 nats_1        | [1] 2020/11/03 14:26:24.435145 [DBG] 172.20.0.3:60308 - cid:1 - Delaying PING due to remote ping 2s ago
