@@ -5,6 +5,7 @@ extern crate env_logger;
 use atomic::Atomic;
 use chrono::DateTime;
 use chrono::Local;
+use libremarkable::appctx;
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::battery;
 use libremarkable::framebuffer::cgmath;
@@ -21,6 +22,7 @@ use libremarkable::input::gpio;
 use libremarkable::input::multitouch;
 use libremarkable::input::wacom;
 use libremarkable::input::InputDevice;
+use libremarkable::input::InputEvent;
 use libremarkable::ui_extensions::element::UIConstraintRefresh;
 use libremarkable::ui_extensions::element::UIElement;
 use libremarkable::ui_extensions::element::UIElementHandle;
@@ -569,8 +571,7 @@ fn main() {
 
     // Takes callback functions as arguments
     // They are called with the event and the &mut framebuffer
-    let mut app: ApplicationContext =
-        ApplicationContext::new(on_button_press, on_wacom_input, on_touch_handler);
+    let mut app: appctx::ApplicationContext<'_> = appctx::ApplicationContext::default();
 
     // Alternatively we could have called `app.execute_lua("fb.clear()")`
     app.clear(true);
@@ -789,7 +790,12 @@ fn main() {
     info!("Init complete. Beginning event dispatch...");
 
     // Blocking call to process events from digitizer + touchscreen + physical buttons
-    app.dispatch_events(true, true, true);
+    app.start_event_loop(true, true, true, |ctx, evt| match evt {
+        InputEvent::WacomEvent { event } => on_wacom_input(ctx, event),
+        InputEvent::MultitouchEvent { event } => on_touch_handler(ctx, event),
+        InputEvent::GPIO { event } => on_button_press(ctx, event),
+        InputEvent::Unknown {} => {}
+    });
     clock_thread.join().unwrap();
     companion_thread.join().unwrap();
 }
