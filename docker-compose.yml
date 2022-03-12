@@ -2,7 +2,7 @@ version: '3.8'
 services:
 
   nats:
-    image: docker.io/library/nats:2-alpine@sha256:8b3fb2423a8cce4607ef30a990b35545afe0a3c613cd05b8eec7b483df268b1d
+    image: docker.io/library/nats:2-alpine@sha256:e1c68ff8dcfd80aeea74468aeab8313f8b72527ae7a5f6d5ef981d8838374406
     environment:
       # Only here so refs can be bound
       _1: &NATS_USER 'reMarkable-HyperCards'
