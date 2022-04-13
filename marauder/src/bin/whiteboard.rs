@@ -707,7 +707,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
     }
     .unwrap();
 
-    let at = (-15000., -150., 0.085);
+    let at = (-15000., -150. * 5., 0.085);
     paint_glyph(app, digit, at, 3992, 3, color).await;
 }
 
@@ -828,6 +828,8 @@ async fn paint_glyph(
             .iter()
             .tuple_windows()
             .map(|((xa, ya), (xb, yb))| {
+                let (xa, ya) = (xa, -ya);
+                let (xb, yb) = (xb, -yb);
                 let xs = vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)];
                 let ys = vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)];
                 let points_count = xs.len();
