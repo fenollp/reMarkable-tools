@@ -510,6 +510,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
         let framebuffer = app.get_framebuffer_ref();
         let roi = CANVAS_REGION;
         match framebuffer.dump_region(roi) {
+            // https://github.com/canselcik/libremarkable/pull/96
             Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
             Ok(buff) => {
                 let mut crc32 = CRC::crc32();
