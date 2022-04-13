@@ -119,10 +119,10 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 	* https://quickdraw.withgoogle.com
 	* https://archive.ics.uci.edu/ml/datasets/UJI+Pen+Characters
 		* https://archive.ics.uci.edu/ml/datasets/Pen-Based+Recognition+of+Handwritten+Digits
-	* https://arxiv.org/abs/1904.08095
-	* https://arxiv.org/abs/1907.12935
+	* [19, TextCaps : Handwritten Character Recognition with Very Small Datasets](https://arxiv.org/abs/1904.08095)
+	* [19, RNN-based Online Handwritten Character Recognition Using Accelerometer and Gyroscope Data](https://arxiv.org/abs/1907.12935)
 	* https://www.gavo.t.u-tokyo.ac.jp/~qiao/database.html
-	* http://www.wikicfp.com/cfp/program?id=1366&f=International%20Conference%20on%20Frontiers%20in%20Handwriting%20Recognition
+	* [ICFHR: International Conference on Frontiers in Handwriting Recognition](http://www.wikicfp.com/cfp/program?id=1366&f=International%20Conference%20on%20Frontiers%20in%20Handwriting%20Recognition)
 	* https://en.wikipedia.org/wiki/List_of_datasets_for_machine-learning_research#Handwriting_and_character_recognition
 	* https://mathpix.com/
 * https://github.com/dickrnn/dickrnn.github.io
@@ -131,22 +131,21 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 * https://parl.ai/projects/recipes
 * https://billwadge.wordpress.com/2020/04/20/the-intensional-spreadsheet
 * https://github.com/lisbravo/MNIST-drawing-test
-* https://supernote.com/#/product?type=SN-A5
 * https://www.myscript.com/
 	* https://github.com/MyScript/interactive-ink-examples-ios
 	* https://github.com/CocoaPods/Specs/blob/master/Specs/f/c/3/MyScriptInteractiveInk-Runtime
-* https://untools.co/
-* https://en.wikipedia.org/wiki/TRIZ
-* https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/
-* https://github.com/alexandre01/deepsvg
-* https://ai.googleblog.com/2020/11/using-gans-to-create-fantastical.html
+* [untools: Tools for better thinking](https://untools.co/)
+* [TRIZ: theory of inventive problem solving](https://en.wikipedia.org/wiki/TRIZ)
+* [Stop Taking Regular Notes; Use a Zettelkasten Instead](https://eugeneyan.com/2020/04/05/note-taking-zettelkasten/)
+* [DeepSVG: A Hierarchical Generative Network for Vector Graphics Animation](https://github.com/alexandre01/deepsvg)
+* [Using GANs to Create Fantastical Creatures](https://ai.googleblog.com/2020/11/using-gans-to-create-fantastical.html)
 * https://github.com/MarkMoHR/Awesome-Sketch-Based-Applications
 * https://github.com/topics/drawing
 * [Sketch-Based-Deep-Learning](https://github.com/qyzdao/Sketch-Based-Deep-Learning)
     * [![A-Benchmark-for-Rough-Sketch-Cleanup](https://pbs.twimg.com/media/EjvgmDyWAAE05JD?format=jpg&name=orig)](https://github.com/Nauhcnay/A-Benchmark-for-Rough-Sketch-Cleanup)
     * [BézierSketch: A generative model for scalable vector sketches](https://arxiv.org/abs/2007.02190)
     * [Sketch-R2CNN: An Attentive Network for Vector Sketch Recognition](https://arxiv.org/abs/1811.08170)
-* https://github.com/Ruturaj123/Flowchart-Detection
+* [Detecting hand drawn flowcharts](https://github.com/Ruturaj123/Flowchart-Detection)
 * [Deep Sketch-guided Cartoon Video Synthesis](https://arxiv.org/abs/2008.04149)
 * [CoSE: While previous approaches rely on sequence-based models for drawings of basic objects or handwritten text, we propose a model that treats drawings as a collection of strokes](https://eth-ait.github.io/cose/)
 * https://github.com/MarkMoHR/Awesome-Sketch-Synthesis
@@ -158,33 +157,80 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
     * [Convert images to vectorized line drawings for plotters.](https://github.com/LingDong-/linedraw)
 * [Draw.io and Terraform = Brainboard, Graphical Way to Do Terraform](https://news.ycombinator.com/item?id=25536133)
 
-https://github.com/cod-ed/handwrite
-http://potrace.sourceforge.net/
-[21, Im2Vec: Synthesizing Vector Graphics without Vector Supervision](https://arxiv.org/abs/2102.02798v1)
+* [Handwrite generates a custom font based on your handwriting sample](https://github.com/cod-ed/handwrite)
+* [Potrace: Transforming bitmaps into vector graphics](http://potrace.sourceforge.net/)
+* [21, Im2Vec: Synthesizing Vector Graphics without Vector Supervision](https://arxiv.org/abs/2102.02798v1)
 
-[Tally marks (from around the world) as battery bar](https://i.redd.it/qgr5kte3gak51.jpg)
+* ![Tally marks (from around the world) as battery bar](https://i.redd.it/qgr5kte3gak51.jpg)
 
-https://github.com/javierbyte/pintr
-https://news.ycombinator.com/item?id=27224094
-https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/
-https://www.jaided.ai/easyocr/
-https://3dlg-hcvc.github.io/plan2scene/
+* [Create single line SVG illustrations from your pictures](https://github.com/javierbyte/pintr)
+* [Show HN: Tool that turns your images into plotter-like line drawings](https://news.ycombinator.com/item?id=27224094)
+* [Pipes and Paper: Ancient Abstractions (or: hacking my ReMarkable tablet into a live presentation tool)](https://blog.afandian.com/2020/10/pipes-and-paper-remarkable/)
+* [EasyOCR is a python module for extracting text from image](https://www.jaided.ai/easyocr/)
+* [Plan2Scene: Converting Floorplans to 3D Scenes](https://3dlg-hcvc.github.io/plan2scene/)
 
 
-https://store.michaelfogleman.com/products/elementary-cellular-automata
-https://github.com/fogleman/ribbon
-https://github.com/fogleman/terrarium
-https://github.com/fogleman/Tiling
-https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
-https://github.com/fogleman/ln
-https://en.wikipedia.org/wiki/Turtle_graphics
-https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig
-https://oeis.org/A088218
+* [![Elementary Cellular Automata](https://store.michaelfogleman.com/products/elementary-cellular-automata)](https://cdn.shopify.com/s/files/1/0300/8102/4131/products/42-30-40891_2048x.png?v=1577735531)
+* [Protein Ribbon Diagrams](https://github.com/fogleman/ribbon)
+* [code for generating topographic contour maps](https://github.com/fogleman/terrarium)
+* [construct tilings of regular polygons and their dual](https://github.com/fogleman/Tiling)
+	* https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
+* [![3D line art engine](https://camo.githubusercontent.com/9cf56a33772e582e53db12702a5809ac912382babc4bba25d494500ec53bad10/687474703a2f2f692e696d6775722e636f6d2f485932466732742e706e67)](https://github.com/fogleman/ln)
+* [Turtle graphics is a key feature of the Logo programming language](https://en.wikipedia.org/wiki/Turtle_graphics)
+* ![bla](https://pbs.twimg.com/media/ErkHD2xXcAUPMtq?format=png&name=orig)
+* [A088218: Total number of leaves in all rooted ordered trees with n edges](https://oeis.org/A088218)
 
-https://mlajtos.mu/posts/new-kind-of-paper
+* https://mlajtos.mu/posts/new-kind-of-paper
 
-https://github.com/n8n-io/n8n
+* [n8n: node based Workflow Automation Tool](https://github.com/n8n-io/n8n)
 
-https://www.bit-101.com/blog/2021/08/chaikins-algorithm-drawing-curves/
+* [CHAIKIN’S ALGORITHM – DRAWING CURVES](https://www.bit-101.com/blog/2021/08/chaikins-algorithm-drawing-curves/)
 
-https://github.com/bkirwi/armrest
+* [armrest: handwriting recognition + Elm-inspired UI library](https://github.com/bkirwi/armrest)
+
+* https://www.reddit.com/r/Handwriting_Analysis/
+
+* [demo: offline OCR with Tesseract](https://old.reddit.com/r/RemarkableTablet/comments/jj5yt2/offline_ocr_on_device_no_cloud_no_ssh_on_rm2/)
+
+* [Chalktalk is a digital presentation and communication language in development at New York University's Future Reality Lab](https://github.com/kenperlin/chalktalk)
+
+* [resvg 0.7 - an SVG rendering library](https://www.reddit.com/r/rust/comments/c2m8t7/resvg_07_an_svg_rendering_library/)
+	* https://github.com/RazrFalcon/svgtypes/tree/master/fuzz
+	* https://github.com/RazrFalcon/resvg
+
+* [librecalibrate button example](https://pastebin.com/KqswUMZF)
+
+* [Pyflow: visual and modular block programming](https://github.com/Bycelium/PyFlow)
+* https://store.steampowered.com/app/619150/while_True_learn/
+* [rete: visual programming and creating node editor](https://github.com/retejs/rete)
+* https://blockprotocol.org/hub
+
+* [A procedural, node-based modelling tool, made in rust](https://github.com/setzer22/blackjack)
+	* https://github.com/setzer22/egui_node_graph
+
+* remarkable chemist app: draw molecules on a hex grid so it renders 3d views
+
+* [favorite browser-based creative arts tools/playthings that use AI or Machine Learning](https://twitter.com/golan/status/1496311115571212294)
+
+* **devices**
+	* [Ratta Supernote](https://supernote.com/#/product?type=SN-A5)
+	* [HUAWEI MatePad Paper](https://consumer.huawei.com/en/tablets/matepad-paper/)
+	* [PineNote](https://www.pine64.org/pinenote/)
+	* [Reinkstone R1](https://reinkstone.com/collections/reinkstone-r1)
+
+* [forget-me-node: draw lines, get flowers](https://www.reddit.com/r/blender/comments/t5qpas/forgetmenode/)
+
+* [savage: A primitive computer algebra system](https://github.com/p-e-w/savage)
+
+* [FEA in order to simulate physical phenomena in the VIRTUAL world](https://www.reddit.com/r/The3DPrintingBootcamp/comments/tfa6t7/finite_element_analysis_fea_in_3d_printing_more/)
+
+* [19, Shrubbery-shell inspired 3D model stylization](https://www.sciencedirect.com/science/article/abs/pii/S0097849319300561)
+
+* [StyleNeRF: A Style-based 3D-Aware Generator for High-resolution Image Synthesis](https://www.reddit.com/r/learnmachinelearning/comments/ti81x8/stylenerf_a_stylebased_3daware_generator_for/)
+
+* [λ-2D: An Exploration of Drawing as Programming Language, Featuring Ideas from Lambda Calculus](https://www.media.mit.edu/projects/2d-an-exploration-of-drawing-as-programming-language-featuring-ideas-from-lambda-calculus/overview/)
+
+* [skastic: Visual programming language: SKetches of Abstract Syntax Trees. I. C.](https://github.com/mypalmike/skastic)
+
+* [Mental Canvas: demo](https://www.reddit.com/r/nextfuckinglevel/comments/u2odk5/imagination_pushes_the_boundaries_of_space_and/)
+	* https://www.mentalcanvas.com/

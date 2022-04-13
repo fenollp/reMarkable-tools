@@ -510,6 +510,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
         let framebuffer = app.get_framebuffer_ref();
         let roi = CANVAS_REGION;
         match framebuffer.dump_region(roi) {
+            // https://github.com/canselcik/libremarkable/pull/96
             Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
             Ok(buff) => {
                 let mut crc32 = CRC::crc32();
@@ -707,7 +708,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
     }
     .unwrap();
 
-    let at = (-15000., -150., 0.085);
+    let at = (-15000., -150. * 5., 0.085);
     paint_glyph(app, digit, at, 3992, 3, color).await;
 }
 
@@ -828,6 +829,8 @@ async fn paint_glyph(
             .iter()
             .tuple_windows()
             .map(|((xa, ya), (xb, yb))| {
+                let (xa, ya) = (xa, -ya);
+                let (xb, yb) = (xb, -yb);
                 let xs = vec![k * (xa - x0), (k * (xa - x0 + xb - x0)) / 2., k * (xb - x0)];
                 let ys = vec![k * (ya - y0), (k * (ya - y0 + yb - y0)) / 2., k * (yb - y0)];
                 let points_count = xs.len();
