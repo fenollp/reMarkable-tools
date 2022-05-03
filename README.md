@@ -170,7 +170,7 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 * [Plan2Scene: Converting Floorplans to 3D Scenes](https://3dlg-hcvc.github.io/plan2scene/)
 
 
-* [![Elementary Cellular Automata](https://store.michaelfogleman.com/products/elementary-cellular-automata)](https://cdn.shopify.com/s/files/1/0300/8102/4131/products/42-30-40891_2048x.png?v=1577735531)
+* [![Elementary Cellular Automata](https://cdn.shopify.com/s/files/1/0300/8102/4131/products/42-30-40891_2048x.png?v=1577735531)](https://store.michaelfogleman.com/products/elementary-cellular-automata)
 * [Protein Ribbon Diagrams](https://github.com/fogleman/ribbon)
 * [code for generating topographic contour maps](https://github.com/fogleman/terrarium)
 * [construct tilings of regular polygons and their dual](https://github.com/fogleman/Tiling)
@@ -234,3 +234,5 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 
 * [Mental Canvas: demo](https://www.reddit.com/r/nextfuckinglevel/comments/u2odk5/imagination_pushes_the_boundaries_of_space_and/)
 	* https://www.mentalcanvas.com/
+
+* [![](https://i.redd.it/p6r54w91ifw81.gif)](https://turtletoy.net/turtle/e1f58b05d7)
