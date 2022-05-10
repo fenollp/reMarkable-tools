@@ -236,3 +236,5 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 	* https://www.mentalcanvas.com/
 
 * [![](https://i.redd.it/p6r54w91ifw81.gif)](https://turtletoy.net/turtle/e1f58b05d7)
+
+* https://www.louisbouchard.ai/editgan/
