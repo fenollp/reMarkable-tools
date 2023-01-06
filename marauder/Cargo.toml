@@ -20,7 +20,7 @@ rand = "^0"
 
 tonic = { version = "0.6", features = ["compression"] }
 prost = "0.9"
-tokio = { version = "1.0", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
+tokio = { version = "1.18", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
 async-stream = "0.3"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
