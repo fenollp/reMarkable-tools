@@ -238,3 +238,7 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 * [![](https://i.redd.it/p6r54w91ifw81.gif)](https://turtletoy.net/turtle/e1f58b05d7)
 
 * https://www.louisbouchard.ai/editgan/
+
+http://www.zefrank.com/scribbler/about.html
+https://mrdoob.com/projects/harmony/
+https://github.com/mrdoob/harmony
