@@ -239,6 +239,23 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 
 * https://www.louisbouchard.ai/editgan/
 
-http://www.zefrank.com/scribbler/about.html
-https://mrdoob.com/projects/harmony/
-https://github.com/mrdoob/harmony
+* [https://mrdoob.com/projects/harmony/](https://github.com/mrdoob/harmony)
+
+* [Appearance-preserving manipulation of hand-drawn graphs](https://dl.acm.org/doi/10.1145/1101389.1101400)
+    * [2015, Hand-Drawn Graph Problems in Online Education](https://dspace.mit.edu/bitstream/handle/1721.1/100303/930711715-MIT.pdf)
+
+* https://github.com/MarkMoHR/Awesome-Sketch-Based-Applications
+
+* [GitHub: Creating Mermaid diagrams](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams#creating-mermaid-diagrams)
+
+* [Simulate dynamic systems expressed in block diagram form using Python](https://github.com/petercorke/bdsim)
+
+* [convert hand-drawn circuit to computer schematic](https://github.com/mahmut-aksakalli/circuit_recognizer)
+
+* [hand-drawn schematic sketch recognizer and converter](https://github.com/aaanthonyyy/CircuitNet)
+
+* https://github.com/MarkMoHR/Awesome-Sketch-Synthesis
+
+* [General Virtual Sketching Framework for Vector Line Art (SIGGRAPH 2021)](https://markmohr.github.io/virtual_sketching/)
+
+* [Recognition of handwritten flowcharts using CNNs to generate C](https://github.com/dbetm/handwritten-flowchart-with-cnn)
