@@ -7,7 +7,9 @@ pub enum DrawMode {
 }
 
 impl Default for DrawMode {
-    fn default() -> Self { Self::Draw(2) }
+    fn default() -> Self {
+        Self::Draw(2)
+    }
 }
 
 impl fmt::Display for DrawMode {
