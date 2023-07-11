@@ -5,37 +5,29 @@ authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-atomic = "^0"
-chrono = "^0"
-env_logger = "^0"
-itertools = "^0"
-once_cell = "^1"
-
-libremarkable = "^0"
-# libremarkable = { git = "https://github.com/canselcik/libremarkable", branch = "master" }
-
-log = "^0"
-nom = "5"
-rand = "^0"
-
-tonic = { version = "0.6", features = ["compression"] }
-prost = "0.9"
-tokio = { version = "1.0", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
-tokio-stream = { version =  "0.1", features = ["net"] }
 async-stream = "0.3"
-futures = { version = "0.3", default-features = false, features = ["alloc"] }
-tower = { version = "0.4" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-structopt = "0.3"
-uuid = { version = "0.8", features = ["v4"] }
-
-quick-xml = { version = "0.22", features = ["serialize"] }
-
+atomic = "0.5"
+chrono = "0.4"
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
-
+env_logger = "0.9"
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+itertools = "0.10"
+libremarkable = "0.6" # libremarkable = { git = "https://github.com/canselcik/libremarkable", branch = "master" }
+log = "0.4"
+nom = "5"
+once_cell = "1"
+prost = "0.9"
 qrcode-generator = "4"
+quick-xml = { version = "0.22", features = ["serialize"] }
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+structopt = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
+tokio-stream = { version =  "0.1", features = ["net"] }
+tonic = { version = "0.6", features = ["compression"] }
+tower = { version = "0.4" }
+uuid = { version = "0.8", features = ["v4"] }
 
 [build-dependencies]
 tonic-build = { version = "0.6", features = ["compression"] }

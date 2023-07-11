@@ -6,6 +6,12 @@ pub enum DrawMode {
     Erase(u32),
 }
 
+impl Default for DrawMode {
+    fn default() -> Self {
+        Self::Draw(2)
+    }
+}
+
 impl fmt::Display for DrawMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -16,10 +22,6 @@ impl fmt::Display for DrawMode {
 }
 
 impl DrawMode {
-    pub fn default() -> Self {
-        DrawMode::Draw(2)
-    }
-
     pub fn set_size(self, new_size: u32) -> Self {
         match self {
             DrawMode::Draw(_) => DrawMode::Draw(new_size),
