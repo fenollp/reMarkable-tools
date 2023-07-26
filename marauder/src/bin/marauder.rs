@@ -361,7 +361,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 DrawMode::Erase(s) => (color::WHITE, s * 3),
             };
 
-            wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
+            wacom_stack.push_back((position.cast().unwrap(), i32::from(pressure)));
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = vec![
@@ -543,7 +543,7 @@ fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
                     border_px: _,
                 } = elem.write().inner
                 {
-                    *text = new_state.to_string();
+                    *text = new_state.to_owned();
                 }
             }
             app.draw_element("tooltipRight");

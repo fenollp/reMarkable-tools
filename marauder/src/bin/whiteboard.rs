@@ -68,10 +68,10 @@ struct Args {
 impl ::std::default::Default for Args {
     fn default() -> Self {
         Self {
-            flag_host: "unset".to_string(),
-            flag_room: "unset".to_string(),
-            flag_webhost: "unset".to_string(),
-            user_id: "anon".to_string(),
+            flag_host: "unset".to_owned(),
+            flag_room: "unset".to_owned(),
+            flag_webhost: "unset".to_owned(),
+            user_id: "anon".to_owned(),
         }
     }
 }
@@ -177,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let host = ARGS.read().unwrap().flag_host.clone();
         info!("[main] using gRPC host: {:?}", host);
-        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_string();
+        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_owned();
         let endpoint = Endpoint::from_shared(host)
             .unwrap()
             .connect_timeout(Duration::from_secs(10))
@@ -307,11 +307,11 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                     mult,
                     pos_x: position.x,
                     pos_y: position.y,
-                    pressure: pressure as i32,
+                    pressure: i32::from(pressure),
                 });
             }
 
-            wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
+            wacom_stack.push_back((position.cast().unwrap(), i32::from(pressure)));
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = vec![

@@ -70,7 +70,7 @@ impl Stroke {
     }
 
     pub fn pointwidth(&self, pressure: u16) -> f32 {
-        (self.tip_size as f32) * (pressure as f32) / 2048.
+        (self.tip_size as f32) * (f32::from(pressure)) / 2048.
     }
 
     pub fn draw(&self, app: &mut ApplicationContext) {
@@ -191,8 +191,8 @@ impl Strokes {
             for p in uji_stroke {
                 pnp.push((
                     cgmath::Point2::<f32> {
-                        x: p.x as f32,
-                        y: p.y as f32,
+                        x: f32::from(p.x),
+                        y: f32::from(p.y),
                     },
                     1024, // pressure
                 ));

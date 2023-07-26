@@ -84,8 +84,8 @@ fn word(input: &str) -> IResult<&str, Word> {
     Ok((
         input,
         Word {
-            glyph: glyph.to_string(),
-            id: id.to_string(),
+            glyph: glyph.to_owned(),
+            id: id.to_owned(),
             strokes,
         },
     ))
@@ -146,7 +146,7 @@ mod test {
 
     #[test]
     fn parse_word() {
-        let inp="
+        let inp = "
 // Non-ASCII char: euro
 WORD € trn_UJI_W11-01
   NUMSTROKES 3
@@ -159,8 +159,8 @@ WORD € trn_UJI_W11-01
             Ok((
                 "",
                 super::Word {
-                    glyph: "€".to_string(),
-                    id: "trn_UJI_W11-01".to_string(),
+                    glyph: "€".to_owned(),
+                    id: "trn_UJI_W11-01".to_owned(),
                     strokes: vec![
                         vec![
                             Point2 { x: 699, y: 197 },
