@@ -1,13 +1,14 @@
-use nom::bytes::complete::tag;
-use nom::multi::separated_list;
-use nom::multi::separated_nonempty_list;
-use nom::multi::{many0, many1};
-use nom::number::complete::float;
-use nom::sequence::tuple;
-use nom::IResult;
+use std::collections::HashMap;
+
+use nom::{
+    bytes::complete::tag,
+    multi::{many0, many1, separated_list, separated_nonempty_list},
+    number::complete::float,
+    sequence::tuple,
+    IResult,
+};
 use quick_xml::de::{from_str, DeError};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Svg {
@@ -83,13 +84,7 @@ mod test {
         let glyphs = super::emsdelight_swash_caps().unwrap();
         let i = vec![
             vec![(117., 438.), (117., 9.45)],
-            vec![
-                (94.5, 630.),
-                (94.5, 589.),
-                (126., 586.),
-                (123., 630.),
-                (94.5, 630.),
-            ],
+            vec![(94.5, 630.), (94.5, 589.), (126., 586.), (123., 630.), (94.5, 630.)],
         ];
         assert_eq!(glyphs.get("i"), Some(&i));
         assert_eq!(glyphs.len(), 206 - 2 - 21);
@@ -102,10 +97,7 @@ mod test {
 
     #[test]
     fn parse_points() {
-        assert_eq!(
-            super::points(" 159 680 L 159 195"),
-            Ok(("", vec![(159., 680.), (159., 195.)]))
-        );
+        assert_eq!(super::points(" 159 680 L 159 195"), Ok(("", vec![(159., 680.), (159., 195.)])));
     }
 
     #[test]
@@ -126,13 +118,7 @@ mod test {
                 "",
                 vec![
                     vec![(159., 680.), (159., 195.)],
-                    vec![
-                        (144., 47.2),
-                        (140., 3.15),
-                        (172., 6.3),
-                        (172., 47.2),
-                        (144., 47.2)
-                    ],
+                    vec![(144., 47.2), (140., 3.15), (172., 6.3), (172., 47.2), (144., 47.2)],
                 ]
             ))
         );

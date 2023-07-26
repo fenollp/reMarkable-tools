@@ -1,17 +1,15 @@
-use libremarkable::appctx::ApplicationContext;
-use libremarkable::framebuffer::cgmath;
-use libremarkable::framebuffer::cgmath::EuclideanSpace;
-use libremarkable::framebuffer::common::*;
-use libremarkable::framebuffer::refresh::PartialRefreshMode;
-use libremarkable::framebuffer::{FramebufferDraw, FramebufferRefresh};
+use std::{thread::sleep, time::Duration};
 
 use itertools::Itertools;
+use libremarkable::{
+    appctx::ApplicationContext,
+    framebuffer::{
+        cgmath, cgmath::EuclideanSpace, common::*, refresh::PartialRefreshMode, FramebufferDraw,
+        FramebufferRefresh,
+    },
+};
 
-use std::thread::sleep;
-use std::time::Duration;
-
-use crate::modes::draw::*;
-use crate::unipen;
+use crate::{modes::draw::*, unipen};
 
 pub struct Stroke {
     color: color,
@@ -76,10 +74,8 @@ impl Stroke {
     pub fn draw(&self, app: &mut ApplicationContext) {
         for (start, ctrl, end) in self.points_and_pressure.iter().tuple_windows() {
             let points = vec![start, ctrl, end];
-            let radii: Vec<f32> = points
-                .iter()
-                .map(|(_, pressure)| (self.pointwidth(*pressure) / 2.))
-                .collect();
+            let radii: Vec<f32> =
+                points.iter().map(|(_, pressure)| (self.pointwidth(*pressure) / 2.)).collect();
             // calculate control points
             let start_point = points[2].0.midpoint(points[1].0);
             let ctrl_point = points[1].0;
@@ -190,10 +186,7 @@ impl Strokes {
             pnp.reserve_exact(uji_stroke.len());
             for p in uji_stroke {
                 pnp.push((
-                    cgmath::Point2::<f32> {
-                        x: f32::from(p.x),
-                        y: f32::from(p.y),
-                    },
+                    cgmath::Point2::<f32> { x: f32::from(p.x), y: f32::from(p.y) },
                     1024, // pressure
                 ));
             }

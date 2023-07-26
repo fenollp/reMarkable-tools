@@ -1,6 +1,6 @@
+use std::{env, fs};
+
 use marauder::unipen;
-use std::env;
-use std::fs;
 
 // turn image drawing to hand sketch
 ///rainy stlye movie romantic

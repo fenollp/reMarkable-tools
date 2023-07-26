@@ -1,7 +1,7 @@
 extern crate libremarkable;
-use libremarkable::framebuffer::common::*;
-
 use std::time::Duration;
+
+use libremarkable::framebuffer::common::*;
 
 use crate::strokes::{Stroke, Strokes};
 
