@@ -1,77 +1,77 @@
+use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+use std::{
+    collections::VecDeque,
+    convert::TryInto,
+    process::Command,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Mutex, RwLock,
+    },
+    time::Duration,
+};
+
+use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
-use libremarkable::appctx;
-use libremarkable::appctx::ApplicationContext;
-use libremarkable::framebuffer::cgmath;
-use libremarkable::framebuffer::cgmath::EuclideanSpace;
-use libremarkable::framebuffer::common::*;
-use libremarkable::framebuffer::common::{DISPLAYHEIGHT, DISPLAYWIDTH};
-use libremarkable::framebuffer::refresh::PartialRefreshMode;
-use libremarkable::framebuffer::storage;
-use libremarkable::framebuffer::FramebufferDraw;
-use libremarkable::framebuffer::FramebufferIO;
-use libremarkable::framebuffer::FramebufferRefresh;
-use libremarkable::image;
-use libremarkable::input::gpio;
-use libremarkable::input::multitouch;
-use libremarkable::input::wacom;
-use libremarkable::input::InputEvent;
-use libremarkable::ui_extensions::element::UIConstraintRefresh;
-use libremarkable::ui_extensions::element::UIElement;
-use libremarkable::ui_extensions::element::UIElementWrapper;
+use libremarkable::{
+    appctx,
+    appctx::ApplicationContext,
+    framebuffer::{
+        cgmath,
+        cgmath::EuclideanSpace,
+        common::{DISPLAYHEIGHT, DISPLAYWIDTH, *},
+        storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
+    },
+    image,
+    input::{GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
+    ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
+};
 use log::{debug, error, info, warn};
-use marauder::drawings;
-use marauder::fonts;
-use marauder::modes::draw::DrawMode;
-use marauder::proto::hypercards::screen_sharing_client::ScreenSharingClient;
-use marauder::proto::hypercards::whiteboard_client::WhiteboardClient;
-use marauder::proto::hypercards::SendScreenReq;
-use marauder::proto::hypercards::{drawing, event};
-use marauder::proto::hypercards::{Drawing, Event};
-use marauder::proto::hypercards::{RecvEventsReq, SendEventReq};
+use marauder::{
+    drawings, fonts,
+    modes::draw::DrawMode,
+    proto::hypercards::{
+        drawing, event, screen_sharing_client::ScreenSharingClient,
+        whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
+        SendScreenReq,
+    },
+};
 use once_cell::sync::Lazy;
 use qrcode_generator::QrCodeEcc;
-use std::collections::VecDeque;
-use std::convert::TryInto;
-use std::process::Command;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicU32};
-use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-use std::sync::Mutex;
-use std::sync::RwLock;
-use std::time::Duration;
-use structopt::StructOpt;
-use tokio::spawn;
-use tokio::task::spawn_blocking;
-use tokio::time::sleep;
-use tonic::transport::Channel;
-use tonic::transport::Endpoint;
-use tonic::Request;
+use tokio::{spawn, task::spawn_blocking, time::sleep};
+use tonic::{
+    transport::{Channel, Endpoint},
+    Request,
+};
 use uuid::Uuid;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "whiteboard", about = "reMarkable whiteboard HyperCard", version = env!("CARGO_PKG_VERSION"))]
+#[derive(Parser, Debug)]
+#[clap(name = "whiteboard", about = "reMarkable whiteboard HyperCard")]
 struct Args {
-    #[structopt(long = "room", default_value = "living-room")]
+    /// Room to join
+    #[arg(long = "room", default_value = "living-room")]
     flag_room: String,
 
-    #[structopt(long = "host", default_value = "http://fknwkdacd.com:10000")]
+    /// Host to connect to
+    #[arg(long = "host", default_value = "http://fknwkdacd.com:10000")]
     flag_host: String,
 
-    #[structopt(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
+    /// Web host to send live feed to
+    #[arg(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
     flag_webhost: String,
 
-    #[structopt(skip)]
+    /// ID to identify as
+    #[arg(skip)]
     user_id: String,
 }
 
 impl ::std::default::Default for Args {
     fn default() -> Self {
         Self {
-            flag_host: "unset".to_string(),
-            flag_room: "unset".to_string(),
-            flag_webhost: "unset".to_string(),
-            user_id: "anon".to_string(),
+            flag_host: "unset".to_owned(),
+            flag_room: "unset".to_owned(),
+            flag_webhost: "unset".to_owned(),
+            user_id: "anon".to_owned(),
         }
     }
 }
@@ -87,12 +87,8 @@ struct Scribble {
 
 const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
-const TOOLBAR_REGION: mxcfb_rect = mxcfb_rect {
-    top: 0,
-    left: 0,
-    height: TOOLBAR_HEIGHT,
-    width: DISPLAYWIDTH as u32,
-};
+const TOOLBAR_REGION: mxcfb_rect =
+    mxcfb_rect { top: 0, left: 0, height: TOOLBAR_HEIGHT, width: DISPLAYWIDTH as u32 };
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: TOOLBAR_HEIGHT,
     left: 0,
@@ -129,8 +125,8 @@ fn maybe_from_env(val: &mut String, var: &str) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut args = Args::from_args();
-    args.user_id = Uuid::new_v4().to_hyphenated().to_string();
+    let mut args = Args::parse();
+    args.user_id = Uuid::new_v4().hyphenated().to_string();
     maybe_from_env(&mut args.flag_room, "WHITEBOARD_ROOM");
     maybe_from_env(&mut args.flag_host, "WHITEBOARD_HOST");
     maybe_from_env(&mut args.flag_webhost, "WHITEBOARD_WEBHOST");
@@ -177,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let host = ARGS.read().unwrap().flag_host.clone();
         info!("[main] using gRPC host: {:?}", host);
-        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_string();
+        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_owned();
         let endpoint = Endpoint::from_shared(host)
             .unwrap()
             .connect_timeout(Duration::from_secs(10))
@@ -274,13 +270,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
+fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
     match input {
-        wacom::WacomEvent::Draw {
-            position,
-            pressure,
-            tilt: _,
-        } => {
+        WacomEvent::Draw { position, pressure, tilt: _ } => {
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
@@ -307,11 +299,11 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                     mult,
                     pos_x: position.x,
                     pos_y: position.y,
-                    pressure: pressure as i32,
+                    pressure: i32::from(pressure),
                 });
             }
 
-            wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
+            wacom_stack.push_back((position.cast().unwrap(), i32::from(pressure)));
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = vec![
@@ -350,14 +342,14 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 );
             }
         }
-        wacom::WacomEvent::InstrumentChange { pen, state } => {
+        WacomEvent::InstrumentChange { pen, state } => {
             match pen {
-                wacom::WacomPen::ToolPen => {
+                WacomPen::ToolPen => {
                     // Whether the pen is in range
                     let in_range = state;
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                 }
-                wacom::WacomPen::Touch => {
+                WacomPen::Touch => {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
@@ -369,11 +361,7 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 _ => unreachable!(),
             }
         }
-        wacom::WacomEvent::Hover {
-            position: _,
-            distance,
-            tilt: _,
-        } => {
+        WacomEvent::Hover { position: _, distance, tilt: _ } => {
             // If the pen is hovering, don't record its coordinates as the origin of the next line
             if distance > 1 {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
@@ -414,28 +402,22 @@ fn maybe_send_drawing() {
 
     debug!("locking TX");
     if let Some(ref tx) = *TX.lock().unwrap() {
-        let drawing = Drawing {
-            xs,
-            ys,
-            pressures: ps,
-            widths: ws,
-            color: col as i32,
-        };
+        let drawing = Drawing { xs, ys, pressures: ps, widths: ws, color: col as i32 };
         tx.send(drawing).unwrap();
         debug!("unlocked TX");
     }
     scribbles.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
     debug!("[on_tch] {:?}", input);
 }
 
-fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
+fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
     let (btn, pressed) = match input {
-        gpio::GPIOEvent::Press { button } => (button, true),
-        gpio::GPIOEvent::Unpress { button } => (button, false),
-        _ => return,
+        GPIOEvent::Press { button } => (button, true),
+        GPIOEvent::Unpress { button } => (button, false),
+        GPIOEvent::Unknown => return,
     };
 
     // Ignoring the unpressed event
@@ -449,13 +431,13 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     }
 
     match btn {
-        gpio::PhysicalButton::RIGHT => {
+        PhysicalButton::RIGHT => {
             info!(">>> pressed right button");
         }
-        gpio::PhysicalButton::LEFT => {
+        PhysicalButton::LEFT => {
             info!(">>> pressed left button");
         }
-        gpio::PhysicalButton::MIDDLE => {
+        PhysicalButton::MIDDLE => {
             app.clear(true);
             app.draw_elements();
 
@@ -466,15 +448,11 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
                 })
             });
         }
-        gpio::PhysicalButton::POWER => {
-            Command::new("systemctl")
-                .arg("start")
-                .arg("xochitl")
-                .spawn()
-                .unwrap();
+        PhysicalButton::POWER => {
+            Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
             std::process::exit(0);
         }
-        gpio::PhysicalButton::WAKEUP => {
+        PhysicalButton::WAKEUP => {
             info!("WAKEUP button(?) pressed(?)");
         }
     };
@@ -554,9 +532,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
 }
 
 async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
-    let mut req = Request::new(RecvEventsReq {
-        room_id: ARGS.read().unwrap().flag_room.clone(),
-    });
+    let mut req = Request::new(RecvEventsReq { room_id: ARGS.read().unwrap().flag_room.clone() });
     add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
 
     info!("[loop_recv] creating stream");
@@ -618,23 +594,9 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
             // start
             (cgmath::Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
             // ctrl
-            (
-                cgmath::Point2 {
-                    x: xs[i + 1],
-                    y: ys[i + 1],
-                },
-                ps[i + 1],
-                ws[i + 1],
-            ),
+            (cgmath::Point2 { x: xs[i + 1], y: ys[i + 1] }, ps[i + 1], ws[i + 1]),
             // end
-            (
-                cgmath::Point2 {
-                    x: xs[i + 2],
-                    y: ys[i + 2],
-                },
-                ps[i + 2],
-                ws[i + 2],
-            ),
+            (cgmath::Point2 { x: xs[i + 2], y: ys[i + 2] }, ps[i + 2], ws[i + 2]),
         ];
         let radii: Vec<f32> = points
             .iter()
@@ -682,10 +644,7 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
     });
     add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
     info!("REQ = {:?}", req);
-    let rep = client
-        .send_event(req)
-        .await
-        .map_err(|e| error!("!Send: {:?}", e));
+    let rep = client.send_event(req).await.map_err(|e| error!("!Send: {:?}", e));
     info!("REP = {:?}", rep);
 }
 

@@ -2,44 +2,38 @@
 extern crate log;
 extern crate env_logger;
 
+use std::{
+    collections::VecDeque,
+    process::Command,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
+    thread::sleep,
+    time::Duration,
+};
+
 use atomic::Atomic;
-use chrono::DateTime;
-use chrono::Local;
-use libremarkable::appctx;
-use libremarkable::appctx::ApplicationContext;
-use libremarkable::battery;
-use libremarkable::framebuffer::cgmath;
-use libremarkable::framebuffer::cgmath::EuclideanSpace;
-use libremarkable::framebuffer::common::*;
-use libremarkable::framebuffer::refresh::PartialRefreshMode;
-use libremarkable::framebuffer::storage;
-use libremarkable::framebuffer::FramebufferDraw;
-use libremarkable::framebuffer::FramebufferIO;
-use libremarkable::framebuffer::FramebufferRefresh;
-use libremarkable::image;
-use libremarkable::image::GenericImage;
-use libremarkable::input::gpio;
-use libremarkable::input::multitouch;
-use libremarkable::input::wacom;
-use libremarkable::input::InputDevice;
-use libremarkable::input::InputEvent;
-use libremarkable::ui_extensions::element::UIConstraintRefresh;
-use libremarkable::ui_extensions::element::UIElement;
-use libremarkable::ui_extensions::element::UIElementHandle;
-use libremarkable::ui_extensions::element::UIElementWrapper;
-use once_cell::sync::Lazy;
+use chrono::{DateTime, Local};
+use libremarkable::{
+    appctx,
+    appctx::ApplicationContext,
+    battery,
+    framebuffer::{
+        cgmath, cgmath::EuclideanSpace, common::*, storage, FramebufferDraw, FramebufferIO,
+        FramebufferRefresh, PartialRefreshMode,
+    },
+    image,
+    image::GenericImage,
+    input::{
+        GPIOEvent, InputDevice, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen,
+    },
+    ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementHandle, UIElementWrapper},
+};
 // use rand::Rng;
 use marauder::modes::draw::DrawMode;
-use marauder::modes::touch::TouchMode;
-use marauder::strokes::Strokes;
-use marauder::unipen;
-use std::collections::VecDeque;
-use std::process::Command;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Mutex;
-use std::thread::sleep;
-use std::time::Duration;
+use marauder::{modes::touch::TouchMode, strokes::Strokes, unipen};
+use once_cell::sync::Lazy;
 // use marauder::shapes::*;
 
 // This region will have the following size at rest:
@@ -150,10 +144,8 @@ fn on_zoom_out(app: &mut ApplicationContext, _element: UIElementHandle) {
                 .copy_from(&resized, CANVAS_REGION.width / 8, CANVAS_REGION.height / 8)
                 .unwrap();
 
-            framebuffer.draw_image(
-                new_image.as_rgb8().unwrap(),
-                CANVAS_REGION.top_left().cast().unwrap(),
-            );
+            framebuffer
+                .draw_image(new_image.as_rgb8().unwrap(), CANVAS_REGION.top_left().cast().unwrap());
             framebuffer.partial_refresh(
                 &CANVAS_REGION,
                 PartialRefreshMode::Async,
@@ -182,10 +174,8 @@ fn on_blur_canvas(app: &mut ApplicationContext, _element: UIElementHandle) {
             )
             .blur(0.6f32);
 
-            framebuffer.draw_image(
-                dynamic.as_rgb8().unwrap(),
-                CANVAS_REGION.top_left().cast().unwrap(),
-            );
+            framebuffer
+                .draw_image(dynamic.as_rgb8().unwrap(), CANVAS_REGION.top_left().cast().unwrap());
             framebuffer.partial_refresh(
                 &CANVAS_REGION,
                 PartialRefreshMode::Async,
@@ -325,13 +315,9 @@ fn loop_companion(app: &mut ApplicationContext) {
 // ## Input Handlers
 // ####################
 
-fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
+fn on_wacom_input(app: &mut ApplicationContext, input: WacomEvent) {
     match input {
-        wacom::WacomEvent::Draw {
-            position,
-            pressure,
-            tilt: _,
-        } => {
+        WacomEvent::Draw { position, pressure, tilt: _ } => {
             // debug!("{} {} {}", position.x, position.y, pressure);
 
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
@@ -361,7 +347,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 DrawMode::Erase(s) => (color::WHITE, s * 3),
             };
 
-            wacom_stack.push_back((position.cast().unwrap(), pressure as i32));
+            wacom_stack.push_back((position.cast().unwrap(), i32::from(pressure)));
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = vec![
@@ -400,14 +386,14 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 );
             }
         }
-        wacom::WacomEvent::InstrumentChange { pen, state } => {
+        WacomEvent::InstrumentChange { pen, state } => {
             match pen {
-                wacom::WacomPen::ToolPen => {
+                WacomPen::ToolPen => {
                     // Whether the pen is in range
                     let in_range = state;
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                 }
-                wacom::WacomPen::Touch => {
+                WacomPen::Touch => {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
@@ -422,11 +408,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 _ => unreachable!(),
             }
         }
-        wacom::WacomEvent::Hover {
-            position: _,
-            distance,
-            tilt: _,
-        } => {
+        WacomEvent::Hover { position: _, distance, tilt: _ } => {
             // If the pen is hovering, don't record its coordinates as the origin of the next line
             if distance > 1 {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
@@ -438,11 +420,9 @@ fn on_wacom_input(app: &mut ApplicationContext, input: wacom::WacomEvent) {
     };
 }
 
-fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+fn on_touch_handler(app: &mut ApplicationContext, input: MultitouchEvent) {
     let framebuffer = app.get_framebuffer_ref();
-    if let multitouch::MultitouchEvent::Press { finger }
-    | multitouch::MultitouchEvent::Move { finger } = input
-    {
+    if let MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } = input {
         let position = finger.pos;
         if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
             return;
@@ -508,11 +488,11 @@ fn on_touch_handler(app: &mut ApplicationContext, input: multitouch::MultitouchE
     }
 }
 
-fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
+fn on_button_press(app: &mut ApplicationContext, input: GPIOEvent) {
     let (btn, new_state) = match input {
-        gpio::GPIOEvent::Press { button } => (button, true),
-        gpio::GPIOEvent::Unpress { button } => (button, false),
-        _ => return,
+        GPIOEvent::Press { button } => (button, true),
+        GPIOEvent::Unpress { button } => (button, false),
+        GPIOEvent::Unknown => return,
     };
 
     // Ignoring the unpressed event
@@ -526,7 +506,7 @@ fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     }
 
     match btn {
-        gpio::PhysicalButton::RIGHT => {
+        PhysicalButton::RIGHT => {
             let new_state = if app.is_input_device_active(InputDevice::Multitouch) {
                 app.deactivate_input_device(InputDevice::Multitouch);
                 "Enable Touch"
@@ -536,31 +516,23 @@ fn on_button_press(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
             };
 
             if let Some(ref elem) = app.get_element_by_name("tooltipRight") {
-                if let UIElement::Text {
-                    ref mut text,
-                    scale: _,
-                    foreground: _,
-                    border_px: _,
-                } = elem.write().inner
+                if let UIElement::Text { ref mut text, scale: _, foreground: _, border_px: _ } =
+                    elem.write().inner
                 {
-                    *text = new_state.to_string();
+                    *text = new_state.to_owned();
                 }
             }
             app.draw_element("tooltipRight");
         }
-        gpio::PhysicalButton::MIDDLE | gpio::PhysicalButton::LEFT => {
-            app.clear(btn == gpio::PhysicalButton::MIDDLE);
+        PhysicalButton::MIDDLE | PhysicalButton::LEFT => {
+            app.clear(btn == PhysicalButton::MIDDLE);
             app.draw_elements();
         }
-        gpio::PhysicalButton::POWER => {
-            Command::new("systemctl")
-                .arg("start")
-                .arg("xochitl")
-                .spawn()
-                .unwrap();
+        PhysicalButton::POWER => {
+            Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
             std::process::exit(0);
         }
-        gpio::PhysicalButton::WAKEUP => {
+        PhysicalButton::WAKEUP => {
             info!("WAKEUP button(?) pressed(?)");
         }
     };

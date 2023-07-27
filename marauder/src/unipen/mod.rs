@@ -1,24 +1,17 @@
+use std::str;
+
 use itertools::Itertools;
 use libremarkable::framebuffer::cgmath;
-use nom::bytes::complete::tag;
-use nom::character::complete::char;
-use nom::character::complete::digit1;
-use nom::character::complete::line_ending;
-use nom::character::complete::multispace0;
-use nom::character::complete::multispace1;
-use nom::character::complete::none_of;
-use nom::character::complete::not_line_ending;
-use nom::combinator::map_res;
-use nom::combinator::opt;
-use nom::combinator::recognize;
-use nom::multi::many0;
-use nom::multi::many1;
-use nom::multi::separated_list;
-use nom::sequence::delimited;
-use nom::sequence::terminated;
-use nom::sequence::tuple;
-use nom::IResult;
-use std::str;
+use nom::{
+    bytes::complete::tag,
+    character::complete::{
+        char, digit1, line_ending, multispace0, multispace1, none_of, not_line_ending,
+    },
+    combinator::{map_res, opt, recognize},
+    multi::{many0, many1, separated_list},
+    sequence::{delimited, terminated, tuple},
+    IResult,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct Word {
@@ -49,12 +42,8 @@ fn points(input: &str) -> IResult<&str, Vec<cgmath::Point2<i16>>> {
         multispace1,
         map_res(recognize(tuple((opt(char('-')), digit1))), str::parse),
     )(input)?;
-    let points = ints
-        .into_iter()
-        .tuple_windows()
-        .step_by(2)
-        .map(|(x, y)| cgmath::Point2 { x, y })
-        .collect();
+    let points =
+        ints.into_iter().tuple_windows().step_by(2).map(|(x, y)| cgmath::Point2 { x, y }).collect();
     Ok((input, points))
 }
 
@@ -81,14 +70,7 @@ fn word(input: &str) -> IResult<&str, Word> {
     let (input, _) = multispace1(input)?;
     let (input, strokes) = strokes(input)?;
     let (input, _) = multispace0(input)?;
-    Ok((
-        input,
-        Word {
-            glyph: glyph.to_string(),
-            id: id.to_string(),
-            strokes,
-        },
-    ))
+    Ok((input, Word { glyph: glyph.to_owned(), id: id.to_owned(), strokes }))
 }
 
 pub fn words(input: &str) -> IResult<&str, Vec<Word>> {
@@ -101,10 +83,7 @@ mod test {
 
     #[test]
     fn parse_comment() {
-        assert_eq!(
-            super::comment("// ASCII char: @\n"),
-            Ok(("", " ASCII char: @"))
-        );
+        assert_eq!(super::comment("// ASCII char: @\n"), Ok(("", " ASCII char: @")));
     }
 
     #[test]
@@ -116,10 +95,7 @@ mod test {
     fn parse_points() {
         assert_eq!(
             super::points("  POINTS 2 # 398 270 385 276"),
-            Ok((
-                "",
-                vec![Point2 { x: 398, y: 270 }, Point2 { x: 385, y: 276 }]
-            ))
+            Ok(("", vec![Point2 { x: 398, y: 270 }, Point2 { x: 385, y: 276 }]))
         );
     }
 
@@ -137,16 +113,13 @@ mod test {
   POINTS 1 # 2 -4
 "
             ),
-            Ok((
-                "\n",
-                vec![vec![Point2 { x: 1, y: 3 }], vec![Point2 { x: 2, y: -4 }]]
-            ))
+            Ok(("\n", vec![vec![Point2 { x: 1, y: 3 }], vec![Point2 { x: 2, y: -4 }]]))
         );
     }
 
     #[test]
     fn parse_word() {
-        let inp="
+        let inp = "
 // Non-ASCII char: euro
 WORD € trn_UJI_W11-01
   NUMSTROKES 3
@@ -159,8 +132,8 @@ WORD € trn_UJI_W11-01
             Ok((
                 "",
                 super::Word {
-                    glyph: "€".to_string(),
-                    id: "trn_UJI_W11-01".to_string(),
+                    glyph: "€".to_owned(),
+                    id: "trn_UJI_W11-01".to_owned(),
                     strokes: vec![
                         vec![
                             Point2 { x: 699, y: 197 },
