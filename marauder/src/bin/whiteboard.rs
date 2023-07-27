@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
 use libremarkable::{
@@ -37,7 +38,6 @@ use marauder::{
 };
 use once_cell::sync::Lazy;
 use qrcode_generator::QrCodeEcc;
-use structopt::StructOpt;
 use tokio::{spawn, task::spawn_blocking, time::sleep};
 use tonic::{
     transport::{Channel, Endpoint},
@@ -45,19 +45,23 @@ use tonic::{
 };
 use uuid::Uuid;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "whiteboard", about = "reMarkable whiteboard HyperCard", version = env!("CARGO_PKG_VERSION"))]
+#[derive(Parser, Debug)]
+#[clap(name = "whiteboard", about = "reMarkable whiteboard HyperCard")]
 struct Args {
-    #[structopt(long = "room", default_value = "living-room")]
+    /// Room to join
+    #[arg(long = "room", default_value = "living-room")]
     flag_room: String,
 
-    #[structopt(long = "host", default_value = "http://fknwkdacd.com:10000")]
+    /// Host to connect to
+    #[arg(long = "host", default_value = "http://fknwkdacd.com:10000")]
     flag_host: String,
 
-    #[structopt(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
+    /// Web host to send live feed to
+    #[arg(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
     flag_webhost: String,
 
-    #[structopt(skip)]
+    /// ID to identify as
+    #[arg(skip)]
     user_id: String,
 }
 
@@ -121,8 +125,8 @@ fn maybe_from_env(val: &mut String, var: &str) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut args = Args::from_args();
-    args.user_id = Uuid::new_v4().to_hyphenated().to_string();
+    let mut args = Args::parse();
+    args.user_id = Uuid::new_v4().hyphenated().to_string();
     maybe_from_env(&mut args.flag_room, "WHITEBOARD_ROOM");
     maybe_from_env(&mut args.flag_host, "WHITEBOARD_HOST");
     maybe_from_env(&mut args.flag_webhost, "WHITEBOARD_WEBHOST");
