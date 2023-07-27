@@ -47,7 +47,7 @@ whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: WEBHOST ?= http://fknwkdacd.com:18888/s
 whiteboard: EXE = whiteboard
 whiteboard: fmt
-	cross build --target=$(TARGET) --release --bin $(EXE) #--locked #--frozen #--offline
+	cross build --target=$(TARGET) --release --bin $(EXE) --locked #--frozen #--offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug WHITEBOARD_WEBHOST=$(WEBHOST) ./$(EXE) --host=$(HOST) | tail -f'
