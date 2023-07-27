@@ -18,7 +18,7 @@ all: src/strokes/strokes_generated.rs lint
 	ls -lh $(BIN)
 
 fmt:
-	cargo fmt
+	cargo +nightly fmt
 
 lint: fmt
 	cross clippy --target=$(TARGET) #-- -W clippy::pedantic
