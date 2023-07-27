@@ -19,11 +19,10 @@ use libremarkable::{
         cgmath,
         cgmath::EuclideanSpace,
         common::{DISPLAYHEIGHT, DISPLAYWIDTH, *},
-        refresh::PartialRefreshMode,
-        storage, FramebufferDraw, FramebufferIO, FramebufferRefresh,
+        storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
     image,
-    input::{gpio, multitouch, wacom, InputEvent},
+    input::{GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
@@ -267,9 +266,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
+fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
     match input {
-        wacom::WacomEvent::Draw { position, pressure, tilt: _ } => {
+        WacomEvent::Draw { position, pressure, tilt: _ } => {
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
@@ -339,14 +338,14 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 );
             }
         }
-        wacom::WacomEvent::InstrumentChange { pen, state } => {
+        WacomEvent::InstrumentChange { pen, state } => {
             match pen {
-                wacom::WacomPen::ToolPen => {
+                WacomPen::ToolPen => {
                     // Whether the pen is in range
                     let in_range = state;
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                 }
-                wacom::WacomPen::Touch => {
+                WacomPen::Touch => {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
@@ -358,7 +357,7 @@ fn on_pen(app: &mut ApplicationContext, input: wacom::WacomEvent) {
                 _ => unreachable!(),
             }
         }
-        wacom::WacomEvent::Hover { position: _, distance, tilt: _ } => {
+        WacomEvent::Hover { position: _, distance, tilt: _ } => {
             // If the pen is hovering, don't record its coordinates as the origin of the next line
             if distance > 1 {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
@@ -406,15 +405,15 @@ fn maybe_send_drawing() {
     scribbles.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, input: multitouch::MultitouchEvent) {
+fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
     debug!("[on_tch] {:?}", input);
 }
 
-fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
+fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
     let (btn, pressed) = match input {
-        gpio::GPIOEvent::Press { button } => (button, true),
-        gpio::GPIOEvent::Unpress { button } => (button, false),
-        _ => return,
+        GPIOEvent::Press { button } => (button, true),
+        GPIOEvent::Unpress { button } => (button, false),
+        GPIOEvent::Unknown => return,
     };
 
     // Ignoring the unpressed event
@@ -428,13 +427,13 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
     }
 
     match btn {
-        gpio::PhysicalButton::RIGHT => {
+        PhysicalButton::RIGHT => {
             info!(">>> pressed right button");
         }
-        gpio::PhysicalButton::LEFT => {
+        PhysicalButton::LEFT => {
             info!(">>> pressed left button");
         }
-        gpio::PhysicalButton::MIDDLE => {
+        PhysicalButton::MIDDLE => {
             app.clear(true);
             app.draw_elements();
 
@@ -445,11 +444,11 @@ fn on_btn(app: &mut ApplicationContext, input: gpio::GPIOEvent) {
                 })
             });
         }
-        gpio::PhysicalButton::POWER => {
+        PhysicalButton::POWER => {
             Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
             std::process::exit(0);
         }
-        gpio::PhysicalButton::WAKEUP => {
+        PhysicalButton::WAKEUP => {
             info!("WAKEUP button(?) pressed(?)");
         }
     };

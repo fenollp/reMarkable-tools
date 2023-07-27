@@ -4,8 +4,8 @@ use itertools::Itertools;
 use libremarkable::{
     appctx::ApplicationContext,
     framebuffer::{
-        cgmath, cgmath::EuclideanSpace, common::*, refresh::PartialRefreshMode, FramebufferDraw,
-        FramebufferRefresh,
+        cgmath, cgmath::EuclideanSpace, common::*, FramebufferDraw, FramebufferRefresh,
+        PartialRefreshMode,
     },
 };
 
