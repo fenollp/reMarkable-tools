@@ -6,8 +6,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     new_path.push_str(&env::var("PATH").unwrap());
     env::set_var("PATH", new_path);
 
-    tonic_build::configure()
-        .build_server(false)
-        .compile(&["proto/hypercard/whiteboard.proto"], &["."])?;
+    tonic_build::compile_protos("proto/hypercard/whiteboard.proto")?;
     Ok(())
 }
