@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 async-stream = "0.3"
-atomic = "0.5"
+atomic = "0.6"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }

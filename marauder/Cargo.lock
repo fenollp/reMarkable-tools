@@ -172,6 +172,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c59bdb34bc650a32731b31bd8f0829cc15d24a708ee31559e0bb34f2bc320cba"
 
 [[package]]
+name = "atomic"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d818003e740b63afc82337e3160717f4f63078720a810b7b903e70a5d1d2994"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "atomic-polyfill"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -997,7 +1006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "665568ee80be33f72306e91a1f2513098da90b85d60874bd7ede74bd9262f397"
 dependencies = [
  "aabb-quadtree",
- "atomic",
+ "atomic 0.5.3",
  "cgmath",
  "env_logger 0.9.3",
  "epoll",
@@ -1062,7 +1071,7 @@ name = "marauder"
 version = "0.3.5"
 dependencies = [
  "async-stream",
- "atomic",
+ "atomic 0.6.0",
  "chrono",
  "clap",
  "crc-any",
