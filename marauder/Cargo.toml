@@ -12,7 +12,7 @@ clap = { version = "4", features = ["derive"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
 env_logger = "0.10"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
-itertools = "0.10"
+itertools = "0.11"
 libremarkable = "0.6" # libremarkable = { git = "https://github.com/canselcik/libremarkable", branch = "master" }
 log = "0.4"
 nom = "5"
