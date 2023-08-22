@@ -10,7 +10,7 @@ atomic = "0.5"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
-env_logger = "0.9"
+env_logger = "0.10"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 itertools = "0.10"
 libremarkable = "0.6" # libremarkable = { git = "https://github.com/canselcik/libremarkable", branch = "master" }
