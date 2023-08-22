@@ -15,7 +15,7 @@ futures = { version = "0.3", default-features = false, features = ["alloc"] }
 itertools = "0.11"
 libremarkable = "0.6" # libremarkable = { git = "https://github.com/canselcik/libremarkable", branch = "master" }
 log = "0.4"
-nom = "5"
+nom = "7"
 once_cell = "1"
 prost = "0.9"
 qrcode-generator = "4"
