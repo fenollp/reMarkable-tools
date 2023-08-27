@@ -306,7 +306,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             wacom_stack.push_back((position.cast().unwrap(), i32::from(pressure)));
             while wacom_stack.len() >= 3 {
                 let framebuffer = app.get_framebuffer_ref();
-                let points = vec![
+                let points = [
                     wacom_stack.pop_front().unwrap(),
                     *wacom_stack.get(0).unwrap(),
                     *wacom_stack.get(1).unwrap(),
