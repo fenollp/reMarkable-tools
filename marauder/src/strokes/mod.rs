@@ -73,7 +73,7 @@ impl Stroke {
 
     pub fn draw(&self, app: &mut ApplicationContext) {
         for (start, ctrl, end) in self.points_and_pressure.iter().tuple_windows() {
-            let points = vec![start, ctrl, end];
+            let points = [start, ctrl, end];
             let radii: Vec<f32> =
                 points.iter().map(|(_, pressure)| (self.pointwidth(*pressure) / 2.)).collect();
             // calculate control points
