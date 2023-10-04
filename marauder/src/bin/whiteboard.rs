@@ -344,12 +344,15 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
         }
         WacomEvent::InstrumentChange { pen, state } => {
             match pen {
+                WacomPen::ToolRubber => {
+                    warn!("Unhandled ToolRubber {state}")
+                }
                 WacomPen::ToolPen => {
                     // Whether the pen is in range
                     let in_range = state;
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                 }
-                WacomPen::Touch => {
+                WacomPen::Touch | WacomPen::Stylus | WacomPen::Stylus2 => {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
@@ -358,7 +361,6 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                         maybe_send_drawing();
                     }
                 }
-                _ => unreachable!(),
             }
         }
         WacomEvent::Hover { position: _, distance, tilt: _ } => {
@@ -371,7 +373,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
         }
-        _ => {}
+        WacomEvent::Unknown => info!("got WacomEvent::Unknown"),
     };
 }
 
@@ -410,6 +412,7 @@ fn maybe_send_drawing() {
 }
 
 fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
+    // [2023-10-04T08:29:54Z DEBUG whiteboard] [on_tch] Release { finger: Finger { tracking_id: 10, pos: Point2 [235, 50], pos_updated: false, last_pressed: false, pressed: false } }
     debug!("[on_tch] {:?}", input);
 }
 
@@ -571,7 +574,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                     let c = PEOPLE_COUNT.fetch_sub(1, Ordering::Relaxed);
                     repaint_people_counter(app, c, c - 1).await;
                 }
-                // Streamer MAY send never revisions of proto messages
+                // Streamer MAY send newer revisions of proto messages
                 #[allow(unreachable_patterns)]
                 Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
             },
