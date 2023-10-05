@@ -126,19 +126,6 @@ fn maybe_from_env(val: &mut String, var: &str) {
 }
 
 const fn fixmee(c: color) -> bool {
-    // c == color::BLACK
-    // error[E0015]: cannot call non-const operator in constant functions
-    //    --> src/bin/whiteboard.rs:129:5
-    //     |
-    // 129 |     c == color::BLACK
-    //     |     ^^^^^^^^^^^^^^^^^
-    //     |
-    // note: impl defined here, but it is not `const`
-    //    --> /home/pete/.cargo/registry/src/index.crates.io-6f17d22bba15001f/libremarkable-0.6.2/src/framebuffer/common.rs:41:30
-    //     |
-    // 41  | #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    //     |                              ^^^^^^^^^
-    //     = note: calls in constant functions are limited to constant functions, tuple structs and tuple variants
     matches!(c, color::BLACK)
 }
 
@@ -147,7 +134,6 @@ fn fixme(c: bool) -> color {
         color::BLACK
     } else {
         color::WHITE
-        // color::RED
     }
 }
 
@@ -321,7 +307,6 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             }
 
             let col = fixme(PEN_COLOR.load(Ordering::Relaxed));
-            // let mult = DrawMode::default().get_size();
             let mult = if col == color::WHITE { 32 } else { 4 };
 
             {
@@ -430,7 +415,6 @@ fn maybe_send_drawing() {
 
     let col = match scribbles[0].color {
         color::WHITE => drawing::Color::White,
-        color::BLACK => drawing::Color::Black,
         _ => drawing::Color::Black,
     };
 
