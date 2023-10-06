@@ -113,7 +113,8 @@ static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
 static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
 
-static PEN_COLOR: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(fixmee(color::BLACK)));
+static PEN_BLACK: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(matches!(black(true), color::BLACK)));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -125,16 +126,19 @@ fn maybe_from_env(val: &mut String, var: &str) {
     }
 }
 
-const fn fixmee(c: color) -> bool {
-    matches!(c, color::BLACK)
-}
-
-fn fixme(c: bool) -> color {
-    if c {
+fn black(x: bool) -> color {
+    if x {
         color::BLACK
     } else {
         color::WHITE
     }
+}
+
+#[test]
+fn color2bool() {
+    assert_eq!(black(true), color::BLACK);
+    assert_eq!(black(false), color::WHITE);
+    assert!(matches!(black(true), color::BLACK));
 }
 
 #[tokio::main]
@@ -306,7 +310,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 return;
             }
 
-            let col = fixme(PEN_COLOR.load(Ordering::Relaxed));
+            let col = black(PEN_BLACK.load(Ordering::Relaxed));
             let mult = if col == color::WHITE { 32 } else { 4 };
 
             {
@@ -365,8 +369,8 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                     let in_range = state; // Whether the pen is in range
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
                     let is_white = matches!(pen, WacomPen::ToolRubber);
-                    info!("changing color to {:?}", fixme(!is_white));
-                    PEN_COLOR.store(!is_white, Ordering::Relaxed);
+                    info!("changing color to {:?}", black(!is_white));
+                    PEN_BLACK.store(!is_white, Ordering::Relaxed);
                 }
                 WacomPen::Touch | WacomPen::Stylus | WacomPen::Stylus2 => {
                     // Whether the pen is actually making contact
