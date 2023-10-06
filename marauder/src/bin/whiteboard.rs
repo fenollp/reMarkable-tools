@@ -1,7 +1,6 @@
 use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 use std::{
     collections::VecDeque,
-    convert::TryInto,
     process::Command,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
@@ -16,20 +15,23 @@ use itertools::Itertools;
 use libremarkable::{
     appctx,
     appctx::ApplicationContext,
+    cgmath::Point2,
     framebuffer::{
         cgmath,
         cgmath::EuclideanSpace,
-        common::{DISPLAYHEIGHT, DISPLAYWIDTH, *},
+        common::{
+            color, display_temp, dither_mode, mxcfb_rect, waveform_mode, DISPLAYHEIGHT,
+            DISPLAYWIDTH, DRAWING_QUANT_BIT,
+        },
         storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
     image,
-    input::{GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
+    input::{Finger, GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
 use marauder::{
     drawings, fonts,
-    modes::draw::DrawMode,
     proto::hypercards::{
         drawing, event, screen_sharing_client::ScreenSharingClient,
         whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
@@ -111,6 +113,9 @@ static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
 static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
 
+static PEN_BLACK: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(matches!(black(true), color::BLACK)));
+
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
@@ -119,6 +124,21 @@ fn maybe_from_env(val: &mut String, var: &str) {
         info!("using {:?} from env: {:?}", var, newval);
         *val = newval;
     }
+}
+
+fn black(x: bool) -> color {
+    if x {
+        color::BLACK
+    } else {
+        color::WHITE
+    }
+}
+
+#[test]
+fn color2bool() {
+    assert_eq!(black(true), color::BLACK);
+    assert_eq!(black(false), color::WHITE);
+    assert!(matches!(black(true), color::BLACK));
 }
 
 #[tokio::main]
@@ -290,7 +310,8 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 return;
             }
 
-            let (col, mult) = (color::BLACK, DrawMode::default().get_size());
+            let col = black(PEN_BLACK.load(Ordering::Relaxed));
+            let mult = if col == color::WHITE { 32 } else { 4 };
 
             {
                 let mut scribbles = SCRIBBLES.lock().unwrap();
@@ -344,12 +365,14 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
         }
         WacomEvent::InstrumentChange { pen, state } => {
             match pen {
-                WacomPen::ToolPen => {
-                    // Whether the pen is in range
-                    let in_range = state;
+                WacomPen::ToolPen | WacomPen::ToolRubber => {
+                    let in_range = state; // Whether the pen is in range
                     WACOM_IN_RANGE.store(in_range, Ordering::Relaxed);
+                    let is_white = matches!(pen, WacomPen::ToolRubber);
+                    info!("changing color to {:?}", black(!is_white));
+                    PEN_BLACK.store(!is_white, Ordering::Relaxed);
                 }
-                WacomPen::Touch => {
+                WacomPen::Touch | WacomPen::Stylus | WacomPen::Stylus2 => {
                     // Whether the pen is actually making contact
                     let making_contact = state;
                     if !making_contact {
@@ -358,7 +381,6 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                         maybe_send_drawing();
                     }
                 }
-                _ => unreachable!(),
             }
         }
         WacomEvent::Hover { position: _, distance, tilt: _ } => {
@@ -371,7 +393,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
         }
-        _ => {}
+        WacomEvent::Unknown => info!("got WacomEvent::Unknown"),
     };
 }
 
@@ -381,7 +403,7 @@ fn maybe_send_drawing() {
     if len < 3 {
         return;
     }
-    debug!("scribbles.len() = {:?}", len);
+    debug!("scribbles.len() = {len:?}");
 
     let mut ws = Vec::<u32>::with_capacity(len);
     let mut xs = Vec::<f32>::with_capacity(len);
@@ -410,7 +432,12 @@ fn maybe_send_drawing() {
 }
 
 fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
-    debug!("[on_tch] {:?}", input);
+    match input {
+        MultitouchEvent::Release { finger: Finger { pos: Point2 { x, y }, .. }, .. } => {
+            info!("[on_tch] finger on zone x:{x} y:{y}")
+        }
+        _ => debug!("[on_tch] {input:?}"),
+    }
 }
 
 fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
@@ -571,7 +598,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                     let c = PEOPLE_COUNT.fetch_sub(1, Ordering::Relaxed);
                     repaint_people_counter(app, c, c - 1).await;
                 }
-                // Streamer MAY send never revisions of proto messages
+                // Streamer MAY send newer revisions of proto messages
                 #[allow(unreachable_patterns)]
                 Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
             },

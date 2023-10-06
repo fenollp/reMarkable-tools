@@ -40,6 +40,9 @@ debug: all
 	rsync -a --stats --progress $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) | tail -f'
 
+kill:
+	ssh $(DEVICE) '/sbin/poweroff'
+
 src/strokes/strokes_generated.rs: src/strokes/strokes.fbs
 	$(FLATC) --rust -o /dst/strokes /$^
 
