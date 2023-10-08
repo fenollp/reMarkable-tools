@@ -1056,7 +1056,7 @@ dependencies = [
 
 [[package]]
 name = "marauder"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "async-stream",
  "atomic",
