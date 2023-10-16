@@ -311,7 +311,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             }
 
             let col = black(PEN_BLACK.load(Ordering::Relaxed));
-            let mult = if col == color::WHITE { 32 } else { 4 };
+            let mult = if col == color::WHITE { 64 } else { 2 };
 
             {
                 let mut scribbles = SCRIBBLES.lock().unwrap();
