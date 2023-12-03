@@ -12,16 +12,14 @@ jobs:
         profile: minimal
         toolchain: stable
         target: armv7-unknown-linux-musleabihf
-        override: true
+        default: true
         components: rustfmt
-    # TODO: following fails with   error occurred: Failed to find tool. Is `arm-linux-gnueabihf-gcc` installed?
-    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+    - run: cargo fetch
+    - uses: actions-rs/cargo@v1
       with:
-        working-directory: marauder
         use-cross: true
         command: build
-        args: --target armv7-unknown-linux-musleabihf --release --bin whiteboard --locked #--frozen #--offline
-      # continue-on-error: true
+        args: --package=marauder --target=armv7-unknown-linux-musleabihf --release --bin whiteboard --locked --frozen --offline
 
   whiteboard_hypercard:
     name: with libc
@@ -33,14 +31,14 @@ jobs:
         profile: minimal
         toolchain: stable
         target: armv7-unknown-linux-gnueabihf
-        override: true
+        default: true
         components: rustfmt
-    - uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+    - run: cargo fetch
+    - uses: actions-rs/cargo@v1
       with:
-        working-directory: marauder
         use-cross: true
         command: build
-        args: --target armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked #--frozen #--offline
+        args: --package=marauder --target=armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked --frozen --offline
     - uses: softprops/action-gh-release@v1 # TODO: https://github.com/actions/create-release/issues/29
       if: startsWith(github.ref, 'refs/tags/')
       with:
