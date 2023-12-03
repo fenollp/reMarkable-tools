@@ -14,9 +14,14 @@ jobs:
         profile: minimal
         toolchain: stable
         target: ${{ env.TARGET }}
-        override: true
+        default: true
         components: rustfmt
-    - run: cross test --package=marauder --target=${{ env.TARGET }}
+    - uses: actions-rs/cargo@v1
+      with:
+        working-directory: marauder
+        use-cross: true
+        args: --package=marauder --target ${{ env.TARGET }}
+        command: test
 
   fmt:
     name: Rustfmt
@@ -28,7 +33,7 @@ jobs:
         profile: minimal
         toolchain: nightly
         target: ${{ env.TARGET }}
-        override: true
+        default: true
         components: rustfmt
     - run: cargo +nightly fmt --all -- --check
 
@@ -42,6 +47,11 @@ jobs:
         profile: minimal
         toolchain: stable
         target: ${{ env.TARGET }}
-        override: true
+        default: true
         components: rustfmt, clippy
-    - run: cross clippy --package=marauder --target=${{ env.TARGET }} -- -D warnings
+    - uses: actions-rs/cargo@v1
+      with:
+        working-directory: marauder
+        use-cross: true
+        args: --package=marauder --target ${{ env.TARGET }} -- -D warnings
+        command: clippy
