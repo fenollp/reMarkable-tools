@@ -1,17 +1,11 @@
 GPB ?= 3.6.1
 GPB_IMG ?= znly/protoc:0.4.0
 
-COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose
 RUN ?= docker run --rm --user $$(id -u):$$(id -g)
 PROTOC ?= $(RUN) -v "$$PWD/../:$$PWD/../" -w "$$PWD" $(GPB_IMG)
 PROTOLOCK ?= $(RUN) -v $$PWD/../:/protolock -w /protolock nilslice/protolock  # commit --force
 
 all: lint hypercards/whiteboard.pb.go
-
-debug:
-	$(COMPOSE) config -q
-	$(COMPOSE) rm -svf
-	$(COMPOSE) up --abort-on-container-exit --force-recreate --build
 
 update: SHELL := /bin/bash
 update:
@@ -19,8 +13,6 @@ update:
 	go get -u -a -v ./...
 	go mod tidy
 	go mod verify
-	$(COMPOSE) pull --ignore-pull-failures
-	$(COMPOSE) build http-server grpc-server
 
 hypercards/whiteboard.pb.go: ../marauder/proto/hypercard/whiteboard.proto
 	$(PROTOC) -I=.. --go_out=plugins=grpc:. $^

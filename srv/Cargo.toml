@@ -1,0 +1,9 @@
+[package]
+name = "srv"
+description = "Beefy, powerful companion to whiteboard, marauder and all :-)"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+edition.workspace = true
+
+[dependencies]
