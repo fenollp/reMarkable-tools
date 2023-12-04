@@ -5,9 +5,6 @@ COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose
 TARGET ?= armv7-unknown-linux-musleabihf
 LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
-EXE = marauder
-BIN = ./target/$(TARGET)/release/$(EXE)
-
 DEVICE ?= remarkable
 
 RUN ?= docker run --rm --user $$(id -u):$$(id -g)
@@ -61,9 +58,10 @@ marauder/src/strokes/strokes_generated.rs: marauder/src/strokes/strokes.fbs
 whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: WEBHOST ?= http://fknwkdacd.com:18888/s
 whiteboard: EXE = whiteboard
+whiteboard: BIN = ./target/$(TARGET)/release/$(EXE)
 whiteboard: marauder/src/strokes/strokes_generated.rs fmt
-	cross clippy --target=$(TARGET) -- -W clippy::pedantic
-	cross build --target=$(TARGET) --release --bin $(EXE) --locked --frozen --offline
+	cross clippy --package=marauder --target=$(TARGET) -- -W clippy::pedantic
+	cross build --package=marauder --target=$(TARGET) --release --bin $(EXE) --locked --frozen --offline
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug WHITEBOARD_WEBHOST=$(WEBHOST) ./$(EXE) --host=$(HOST) | tail -f'
