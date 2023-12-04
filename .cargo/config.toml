@@ -1,0 +1,16 @@
+[build]
+rustflags = [
+    "-D", "warnings",
+    "-W", "clippy::cast_lossless",
+    "-W", "clippy::redundant_closure_for_method_calls",
+    "-W", "clippy::str_to_string",
+
+    # "-W", "clippy::all",
+    # "-W", "clippy::correctness",
+    # "-W", "clippy::suspicious",
+    # "-W", "clippy::complexity",
+    # "-W", "clippy::perf",
+    # "-W", "clippy::pedantic",
+    # "-W", "clippy::restriction",
+    # "-W", "clippy::cargo",
+]
