@@ -21,6 +21,6 @@ updates:
 
 - package-ecosystem: 'cargo'
   open-pull-requests-limit: 10
-  directory: '/marauder'
+  directory: '/'
   schedule:
     interval: 'daily'
