@@ -329,7 +329,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 let framebuffer = app.get_framebuffer_ref();
                 let points = [
                     wacom_stack.pop_front().unwrap(),
-                    *wacom_stack.get(0).unwrap(),
+                    *wacom_stack.front().unwrap(),
                     *wacom_stack.get(1).unwrap(),
                 ];
                 let radii: Vec<f32> = points
