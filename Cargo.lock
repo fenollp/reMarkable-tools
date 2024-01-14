@@ -507,6 +507,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "function_name"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1ab577a896d09940b5fe12ec5ae71f9d8211fff62c919c03a3750a9901e98a7"
+dependencies = [
+ "function_name-proc-macro",
+]
+
+[[package]]
+name = "function_name-proc-macro"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673464e1e314dd67a0fd9544abc99e8eb28d0c7e3b69b033bcff9b2d00b87333"
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1032,7 +1047,6 @@ dependencies = [
  "clap",
  "crc-any",
  "env_logger",
- "futures",
  "itertools 0.12.0",
  "libremarkable",
  "log",
@@ -1043,7 +1057,6 @@ dependencies = [
  "quick-xml",
  "rand",
  "serde",
- "serde_json",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -1510,6 +1523,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
+name = "ringbuffer"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df6368f71f205ff9c33c076d170dd56ebf68e8161c733c0caa07a7a5509ed53"
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1569,12 +1588,11 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "scrolls"
 version = "0.3.7"
 dependencies = [
+ "anyhow",
  "async-stream",
  "atomic",
- "chrono",
- "clap",
- "crc-any",
  "env_logger",
+ "function_name",
  "futures",
  "itertools 0.12.0",
  "libremarkable",
@@ -1583,17 +1601,16 @@ dependencies = [
  "nom",
  "once_cell",
  "prost",
- "qrcode-generator",
  "quick-xml",
  "rand",
+ "ringbuffer",
  "serde",
+ "serde-jsonlines",
  "serde_json",
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
  "tower",
- "uuid",
 ]
 
 [[package]]
@@ -1609,6 +1626,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63261df402c67811e9ac6def069e4786148c4563f4b50fd4bf30aa370d626b02"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-jsonlines"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e228faf5f94badfe42723177b62cfb9b187351994cb4e852cd4a6a4c96dbeea8"
+dependencies = [
+ "futures",
+ "pin-project-lite",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

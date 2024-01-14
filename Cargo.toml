@@ -13,12 +13,14 @@ repository = "https://github.com/fenollp/reMarkable-tools"
 edition = "2021"
 
 [workspace.dependencies]
+anyhow = "1"
 async-stream = "0.3"
 atomic = "0.5"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
 env_logger = "0.10"
+function_name = "0.3"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 itertools = "0.12"
 log = "0.4"
@@ -28,7 +30,9 @@ prost = "0.9"
 qrcode-generator = "4"
 quick-xml = { version = "0.22", features = ["serialize"] }
 rand = "0.8"
+ringbuffer = "0.15"
 serde = { version = "1", features = ["derive"] }
+serde-jsonlines = { version = "0.5", features = ["async"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "fs", "macros", "net"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
