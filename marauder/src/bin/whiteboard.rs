@@ -30,15 +30,13 @@ use libremarkable::{
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
-use marauder::{
-    drawings, fonts,
-    proto::hypercards::{
-        drawing, event, screen_sharing_client::ScreenSharingClient,
-        whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
-        SendScreenReq,
-    },
-};
+use marauder::fonts;
 use once_cell::sync::Lazy;
+use pb::proto::hypercards::{
+    drawing, event, screen_sharing_client::ScreenSharingClient,
+    whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
+    SendScreenReq,
+};
 use qrcode_generator::QrCodeEcc;
 use tokio::{spawn, task::spawn_blocking, time::sleep};
 use tonic::{

@@ -1,0 +1,10 @@
+[package]
+name = "drawings"
+description = "A collection of drawings"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+edition.workspace = true
+
+[dependencies]
+pb.path = "../pb"

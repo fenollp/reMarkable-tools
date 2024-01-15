@@ -1,24 +1,9 @@
-GPB ?= 3.6.1
-GPB_IMG ?= znly/protoc:0.4.0
+all: lint
 
-RUN ?= docker run --rm --user $$(id -u):$$(id -g)
-PROTOC ?= $(RUN) -v "$$PWD/../:$$PWD/../" -w "$$PWD" $(GPB_IMG)
-PROTOLOCK ?= $(RUN) -v $$PWD/../:/protolock -w /protolock nilslice/protolock  # commit --force
-
-all: lint hypercards/whiteboard.pb.go
-
-update: SHELL := /bin/bash
 update:
-	[[ 'libprotoc $(GPB)' = $$($(PROTOC) --version) ]]
 	go get -u -a -v ./...
 	go mod tidy
 	go mod verify
-
-hypercards/whiteboard.pb.go: ../marauder/proto/hypercard/whiteboard.proto
-	$(PROTOC) -I=.. --go_out=plugins=grpc:. $^
-	mv marauder/proto/hypercard/whiteboard.pb.go $@
-	rmdir marauder/proto/hypercard marauder/proto marauder
-	$(PROTOLOCK) commit
 
 fmt:
 	go fmt ./...

@@ -1,0 +1,20 @@
+[package]
+name = "scrolls"
+description = "Replay scribbles, drawings, doodles, convos..."
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+drawings.path = "../drawings"
+env_logger.workspace = true
+function_name.workspace = true
+libremarkable.workspace = true
+log.workspace = true
+pb.path = "../pb"
+ringbuffer.workspace = true
+serde-jsonlines.workspace = true
+serde.workspace = true
+tokio.workspace = true

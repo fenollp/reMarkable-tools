@@ -7,24 +7,49 @@ LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
 DEVICE ?= remarkable
 
-RUN ?= docker run --rm --user $$(id -u):$$(id -g)
-FLATC ?= $(RUN) -v "$$PWD"/src:/src -v "$$PWD"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
+RUN ?= docker run --rm #--user $$(id -u):$$(id -g)
+FLATC ?= $(RUN) -v "$(PWD)"/src:/src -v "$(PWD)"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
+
+GPB ?= 3.6.1
+PROTOC ?= $(RUN) -v "$(PWD):$(PWD)":rw -w "$(PWD)" znly/protoc:0.4.0
+PROTOLOCK ?= $(RUN) -v $(PWD):/protolock:rw -w /protolock nilslice/protolock  # commit --force
 
 
 all: lint
 
 
-debug: lint
+debug: lint whiteboard-server/hypercards/whiteboard.pb.go
 	$(COMPOSE) rm -svf
 	$(COMPOSE) up --abort-on-container-exit --remove-orphans --force-recreate --build
 
-
 fmt:
-
+	cargo +nightly fmt --all
+	$(MAKE) $@ -C whiteboard-server
 
 lint: fmt
 	$(COMPOSE) config -q
 
+clean:
+	$(COMPOSE) down
+
+update: SHELL := /bin/bash
+update:
+	[[ 'libprotoc $(GPB)' = $$($(PROTOC) --version) ]]
+	cargo update
+	$(MAKE) $@ -C whiteboard-server
+	$(COMPOSE) pull --ignore-pull-failures
+	$(COMPOSE) build http-server grpc-server
+
+
+# marauder
+
+shell:
+	ssh -vvv $(DEVICE)
+
+kill:
+	ssh $(DEVICE) '/sbin/poweroff'
+
+# ujipenchars2
 
 marauder/ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
 marauder/ujipenchars2.txt:
@@ -35,22 +60,12 @@ test-ujipenchars2: marauder/ujipenchars2.txt
 test: fmt test-ujipenchars2
 	cargo test --target=$$($(LOCAL_TARGET))
 
+# whiteboard
 
-clean:
-	$(COMPOSE) down
-
-
-update:
-	cargo update
-	$(MAKE) $@ -C whiteboard-server
-	$(COMPOSE) pull --ignore-pull-failures
-	$(COMPOSE) build http-server grpc-server
-
-
-# marauder
-
-kill:
-	ssh $(DEVICE) '/sbin/poweroff'
+whiteboard-server/hypercards/whiteboard.pb.go: pb/proto/whiteboard.proto
+	$(PROTOC) -I=. --go_out=plugins=grpc:. $^
+	mv pb/proto/whiteboard.pb.go $@
+	$(PROTOLOCK) commit
 
 marauder/src/strokes/strokes_generated.rs: marauder/src/strokes/strokes.fbs
 	$(FLATC) --rust -o /dst/strokes /$^
@@ -65,3 +80,20 @@ whiteboard: marauder/src/strokes/strokes_generated.rs fmt
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress $(BIN) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug WHITEBOARD_WEBHOST=$(WEBHOST) ./$(EXE) --host=$(HOST) | tail -f'
+
+
+# scrolls
+
+#tmux a -t rM-scrolls || tmux new -s rM-scrolls
+#tmux send-keys -t rM-scrolls:0 'echo y' Enter
+
+scrolls: EXE = scrolls
+scrolls: BIN = ./target/$(TARGET)/release/$(EXE)
+scrolls: SES = rM-$(EXE)
+scrolls: fmt
+	cross clippy --locked --frozen --offline --all-features --target=$(TARGET) --package=$(EXE) -- -D warnings --no-deps \
+	  -W clippy::cast_lossless -W clippy::redundant_closure_for_method_calls -W clippy::str_to_string
+	cross build  --locked --frozen --offline --all-features --target=$(TARGET) --package=$(EXE) --bin $(EXE)  --release
+	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
+	rsync -a --stats --progress $(BIN) "$$(ls -t ./*.jsonl | head -n1)" $(DEVICE):
+	ssh -t $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) '"$$(ls -t ./*.jsonl | head -n1)"
