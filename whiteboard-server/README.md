@@ -13,7 +13,7 @@ multiple people can draw and collab on like a virtual whiteboard, but failing th
 1. Run `make debug` on a machine on the same network as your reMarkable tablet.
 1. Listen to a room's events with
 ```
-grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
+grpcurl -proto pb/proto/whiteboard.proto \
   -rpc-header 'x-user: moi1' \
   -d '{"room_id":"bla" }' \
   -plaintext localhost:10000 \
@@ -21,7 +21,7 @@ grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
 ```
 1. In another shell, send some event: (it appears on the previous shell)
 ```
-grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
+grpcurl -proto pb/proto/whiteboard.proto \
   -rpc-header 'x-user: me2' \
   -d '{"room_ids":["bla","bloop"] ,"event":{"event_drawing":{}} }' \
   -plaintext localhost:10000 \
@@ -29,7 +29,7 @@ grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
 ```
 1. Have a second user listen to the same room and observe the first user getting a connection event:
 ```
-grpcurl -proto marauder/proto/hypercard/whiteboard.proto \
+grpcurl -proto pb/proto/whiteboard.proto \
   -rpc-header 'x-user: me2' \
   -d '{"room_id":"bla" }' \
   -plaintext localhost:10000 \

@@ -1052,6 +1052,7 @@ dependencies = [
  "log",
  "nom",
  "once_cell",
+ "pb",
  "prost",
  "qrcode-generator",
  "quick-xml",
@@ -1060,7 +1061,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
  "tower",
  "uuid",
 ]
@@ -1243,6 +1243,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05e6affeb1632d6ff6a23d2cd40ffed138e82f1532571a26f527c8a284bb2fbb"
 dependencies = [
  "ttf-parser",
+]
+
+[[package]]
+name = "pb"
+version = "0.3.7"
+dependencies = [
+ "prost",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]
@@ -1600,6 +1609,7 @@ dependencies = [
  "marauder",
  "nom",
  "once_cell",
+ "pb",
  "prost",
  "quick-xml",
  "rand",

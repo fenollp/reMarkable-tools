@@ -18,16 +18,14 @@ libremarkable.workspace = true
 log.workspace = true
 nom.workspace = true
 once_cell.workspace = true
+pb.path = "../pb"
 prost.workspace = true
 qrcode-generator.workspace = true
 quick-xml.workspace = true
 rand.workspace = true
 serde.workspace = true
-tokio.workspace = true
 tokio-stream.workspace = true
+tokio.workspace = true
 tonic.workspace = true
 tower.workspace = true
 uuid.workspace = true
-
-[build-dependencies]
-tonic-build.workspace = true

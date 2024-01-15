@@ -1,7 +1,7 @@
 {
   "definitions": [
     {
-      "protopath": "marauder:/:proto:/:hypercard:/:whiteboard.proto",
+      "protopath": "pb:/:proto:/:whiteboard.proto",
       "def": {
         "enums": [
           {

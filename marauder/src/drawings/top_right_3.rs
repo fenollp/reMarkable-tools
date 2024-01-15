@@ -1,5 +1,4 @@
-#![allow(clippy::all)]
-use crate::proto::hypercards::{drawing::Color, Drawing};
+use pb::proto::hypercards::{drawing::Color, Drawing};
 
 pub fn f(c: Color) -> Vec<Drawing> {
     vec![Drawing {

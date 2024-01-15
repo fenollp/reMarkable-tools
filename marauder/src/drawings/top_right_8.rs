@@ -1,5 +1,4 @@
-#![allow(clippy::all)]
-use crate::proto::hypercards::{drawing::Color, Drawing};
+use pb::proto::hypercards::{drawing::Color, Drawing};
 
 pub fn f(c: Color) -> Vec<Drawing> {
     vec![Drawing {
@@ -28,7 +27,7 @@ pub fn f(c: Color) -> Vec<Drawing> {
             30.26699, 27.409931, 24.55287, 22.32079, 20.62441, 19.553013,
         ],
         pressures: vec![
-            0 / 2,
+            0,
             2882 / 2,
             3077 / 2,
             3275 / 2,

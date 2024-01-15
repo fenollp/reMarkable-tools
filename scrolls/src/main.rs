@@ -18,10 +18,8 @@ use libremarkable::{
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info};
-use marauder::{
-    drawings,
-    proto::hypercards::{drawing, Drawing},
-};
+use marauder::drawings;
+use pb::proto::hypercards::{drawing, Drawing};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;
 use tokio::{task::spawn_blocking, time::sleep};

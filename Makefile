@@ -7,40 +7,34 @@ LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
 DEVICE ?= remarkable
 
-RUN ?= docker run --rm --user $$(id -u):$$(id -g)
-FLATC ?= $(RUN) -v "$$PWD"/src:/src -v "$$PWD"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
+RUN ?= docker run --rm #--user $$(id -u):$$(id -g)
+FLATC ?= $(RUN) -v "$(PWD)"/src:/src -v "$(PWD)"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
+
+GPB ?= 3.6.1
+PROTOC ?= $(RUN) -v "$(PWD):$(PWD)":rw -w "$(PWD)" znly/protoc:0.4.0
+PROTOLOCK ?= $(RUN) -v $(PWD):/protolock:rw -w /protolock nilslice/protolock  # commit --force
 
 
 all: lint
 
 
-debug: lint
+debug: lint whiteboard-server/hypercards/whiteboard.pb.go
 	$(COMPOSE) rm -svf
 	$(COMPOSE) up --abort-on-container-exit --remove-orphans --force-recreate --build
 
-
 fmt:
-
+	cargo +nightly fmt --all
+	$(MAKE) $@ -C whiteboard-server
 
 lint: fmt
 	$(COMPOSE) config -q
 
-
-marauder/ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
-marauder/ujipenchars2.txt:
-	curl -fSLo $@ $(url)
-test-ujipenchars2: marauder/ujipenchars2.txt
-	cargo run --target=$$($(LOCAL_TARGET)) --bin ujipenchars $^
-
-test: fmt test-ujipenchars2
-	cargo test --target=$$($(LOCAL_TARGET))
-
-
 clean:
 	$(COMPOSE) down
 
-
+update: SHELL := /bin/bash
 update:
+	[[ 'libprotoc $(GPB)' = $$($(PROTOC) --version) ]]
 	cargo update
 	$(MAKE) $@ -C whiteboard-server
 	$(COMPOSE) pull --ignore-pull-failures
@@ -54,6 +48,24 @@ shell:
 
 kill:
 	ssh $(DEVICE) '/sbin/poweroff'
+
+# ujipenchars2
+
+marauder/ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
+marauder/ujipenchars2.txt:
+	curl -fSLo $@ $(url)
+test-ujipenchars2: marauder/ujipenchars2.txt
+	cargo run --target=$$($(LOCAL_TARGET)) --bin ujipenchars $^
+
+test: fmt test-ujipenchars2
+	cargo test --target=$$($(LOCAL_TARGET))
+
+# whiteboard
+
+whiteboard-server/hypercards/whiteboard.pb.go: pb/proto/whiteboard.proto
+	$(PROTOC) -I=. --go_out=plugins=grpc:. $^
+	mv pb/proto/whiteboard.pb.go $@
+	$(PROTOLOCK) commit
 
 marauder/src/strokes/strokes_generated.rs: marauder/src/strokes/strokes.fbs
 	$(FLATC) --rust -o /dst/strokes /$^
