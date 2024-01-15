@@ -18,7 +18,6 @@ use libremarkable::{
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info};
-use marauder::drawings;
 use pb::proto::hypercards::{drawing, Drawing};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;

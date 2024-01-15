@@ -412,6 +412,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "drawings"
+version = "0.3.7"
+dependencies = [
+ "pb",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1046,6 +1053,7 @@ dependencies = [
  "chrono",
  "clap",
  "crc-any",
+ "drawings",
  "env_logger",
  "itertools 0.12.0",
  "libremarkable",
@@ -1598,29 +1606,16 @@ name = "scrolls"
 version = "0.3.7"
 dependencies = [
  "anyhow",
- "async-stream",
- "atomic",
+ "drawings",
  "env_logger",
  "function_name",
- "futures",
- "itertools 0.12.0",
  "libremarkable",
  "log",
- "marauder",
- "nom",
- "once_cell",
  "pb",
- "prost",
- "quick-xml",
- "rand",
  "ringbuffer",
  "serde",
  "serde-jsonlines",
- "serde_json",
  "tokio",
- "tokio-stream",
- "tonic",
- "tower",
 ]
 
 [[package]]

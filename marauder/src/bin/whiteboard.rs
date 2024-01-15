@@ -30,7 +30,7 @@ use libremarkable::{
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
-use marauder::{drawings, fonts};
+use marauder::fonts;
 use once_cell::sync::Lazy;
 use pb::proto::hypercards::{
     drawing, event, screen_sharing_client::ScreenSharingClient,

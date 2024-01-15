@@ -12,6 +12,7 @@ atomic.workspace = true
 chrono.workspace = true
 clap.workspace = true
 crc-any.workspace = true
+drawings.path = "../drawings"
 env_logger.workspace = true
 itertools.workspace = true
 libremarkable.workspace = true
