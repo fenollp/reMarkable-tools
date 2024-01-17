@@ -10,7 +10,6 @@ edition.workspace = true
 anyhow.workspace = true
 drawings.path = "../drawings"
 env_logger.workspace = true
-function_name.workspace = true
 libremarkable.workspace = true
 log.workspace = true
 pb.path = "../pb"
