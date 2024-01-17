@@ -1,27 +1,16 @@
-use std::{collections::HashSet, env, process::Command, time::Duration};
+use std::{collections::HashSet, env};
 
 use anyhow::Result;
-use libremarkable::{
-    appctx,
-    appctx::ApplicationContext,
-    framebuffer::{
-        cgmath,
-        cgmath::EuclideanSpace,
-        common::{color, display_temp, dither_mode, waveform_mode, DRAWING_QUANT_BIT_3},
-        FramebufferDraw, FramebufferRefresh, PartialRefreshMode,
-    },
-    // ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
-};
-use log::{debug, error, info};
+use libremarkable::appctx::ApplicationContext;
+use log::info;
 use pb::proto::hypercards::{drawing, Drawing};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;
-use tokio::{task::spawn_blocking, time::sleep};
+use tokio::time::sleep;
 
-pub(crate) async fn read_and_paint_jsonl(
-    app: &mut ApplicationContext<'_>,
-    fpath: String,
-) -> Result<()> {
+use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+
+pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
     let mut ring = AllocRingBuffer::new(37);
 
     for d in serde_jsonlines::json_lines(fpath)? {
@@ -63,7 +52,7 @@ pub(crate) async fn read_and_paint_jsonl(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct DrawingBis {
+pub(crate) struct DrawingBis {
     pub xs: Vec<f32>,
     pub ys: Vec<f32>,
     pub pressures: Vec<i32>,

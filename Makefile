@@ -95,5 +95,5 @@ scrolls: fmt
 	cross build --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) --bin $(EXE) --release
 	du -sh ./target/x/$(TARGET)/release/$(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	rsync -a --stats --progress ./target/x/$(TARGET)/release/$(EXE) "$$(ls -t ./*.jsonl | head -n1)" $(DEVICE):
-	ssh -t $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) '"$$(ls -t ./*.jsonl | head -n1)"
+	rsync -a --stats --progress ./target/x/$(TARGET)/release/$(EXE) $$(find . -maxdepth 1 -type f \( -iname \*.jsonl -o -iname \*.ndjson \) -printf '%T@\t%p\n' | sort -nr | cut -f2-) $(DEVICE):
+	ssh -t $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) $$(find . -maxdepth 1 -type f \( -iname \*.jsonl -o -iname \*.ndjson \))'

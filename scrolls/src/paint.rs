@@ -16,11 +16,14 @@ pub(crate) const DRAWING_PACE: Duration = Duration::from_millis(2);
 pub(crate) const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
 pub(crate) async fn paint(app: &mut ApplicationContext<'_>, drawing: &Drawing) {
+    if drawing.xs.len() < 3 {
+        return;
+    }
+
     let col = match drawing.color() {
         drawing::Color::White => color::WHITE,
         _ => color::BLACK,
     };
-    assert!(drawing.xs.len() >= 3);
     for i in 0..(drawing.xs.len() - 2) {
         if i != 0 {
             sleep(DRAWING_PACE).await;

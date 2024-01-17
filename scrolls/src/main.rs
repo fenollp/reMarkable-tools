@@ -1,22 +1,20 @@
-use std::{collections::HashSet, env, process::Command, time::Duration};
+use std::{env, process::Command};
 
 use anyhow::Result;
 use libremarkable::{
+    // ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
     appctx,
     appctx::ApplicationContext,
-    framebuffer::{
-        cgmath,
-        cgmath::EuclideanSpace,
-        common::{color, display_temp, dither_mode, waveform_mode, DRAWING_QUANT_BIT_3},
-        FramebufferDraw, FramebufferRefresh, PartialRefreshMode,
-    },
-    // ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info};
 use pb::proto::hypercards::{drawing, Drawing};
-use ringbuffer::{AllocRingBuffer, RingBuffer};
-use serde::Deserialize;
 use tokio::{task::spawn_blocking, time::sleep};
+
+use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+
+mod jsonl;
+mod ndjson;
+mod paint;
 
 // const TOOLBAR_BAR_WIDTH: u32 = 2;
 // const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
@@ -78,52 +76,11 @@ async fn paint_scrolls(app: &mut ApplicationContext<'_>) -> Result<()> {
         debug!(target:env!("CARGO_PKG_NAME"), "opening {fpath}...");
         match fpath {
             _ if fpath.ends_with(".jsonl") => jsonl::read_and_paint(app, fpath).await?,
-            _ if fpath.ends_with(".ndjson") => read_and_paint_ndjson(app, fpath).await?,
+            _ if fpath.ends_with(".ndjson") => ndjson::read_and_paint(app, fpath).await?,
             _ => error!(target:env!("CARGO_PKG_NAME"), "No idea how to read {fpath}"),
         }
         sleep(DRAWING_PACE).await;
     }
-    Ok(())
-}
-
-async fn read_and_paint_ndjson(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
-    // let mut ring = AllocRingBuffer::new(37);
-
-    // for d in serde_jsonlines::json_lines(fpath)? {
-    //     let d: DrawingBis = d?;
-    //     let d: Drawing = d.into();
-    //     let c = d.color();
-
-    //     info!(target:env!("CARGO_PKG_NAME"), "{act} XxY: {x}x{y}",
-    //         act = if c==drawing::Color::Black {"drawing"} else {"erasing"},
-    //         x = d.xs.len(),
-    //         y = d.ys.len(),
-    //         p = d.pressures.len(),
-    //         w = d.widths.len(),
-    //     );
-
-    //     assert_eq!(
-    //         HashSet::from([d.xs.len()]),
-    //         HashSet::from([d.ys.len(), d.pressures.len(), d.widths.len()])
-    //     );
-
-    //     sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
-    //     paint(app, &d).await;
-
-    //     if c == drawing::Color::Black {
-    //         ring.enqueue(d.clone());
-    //     }
-    //     while ring.is_full() {
-    //         let Some(x) = ring.dequeue() else { break };
-    //         let x = Drawing { color: drawing::Color::White.into(), ..x };
-    //         paint(app, &x).await;
-    //     }
-    // }
-
-    // for x in ring.drain() {
-    //     let x = Drawing { color: drawing::Color::White.into(), ..x };
-    //     paint(app, &x).await;
-    // }
     Ok(())
 }
 

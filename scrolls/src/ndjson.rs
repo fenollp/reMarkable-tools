@@ -13,17 +13,26 @@ use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
 pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
     let mut ring = AllocRingBuffer::new(37);
 
-    for ds in serde_jsonlines::json_lines(fpath)? {
+    for (i, ds) in serde_jsonlines::json_lines(fpath)?.enumerate() {
         let ds: DrawingBis = ds?;
         let ds: Vec<Drawing> = ds.into_vec();
 
-        for d in ds {
+        let (off_x, off_y) = (150f32, 200f32);
+        let (mul_x, mul_y) = (0.5f32, 0.5f32);
+        let i = i as f32;
+        for d in ds.into_iter() {
             let c = d.color();
 
             info!(target:env!("CARGO_PKG_NAME"), "drawing XxY: {x}x{y}",
                 x = d.xs.len(),
                 y = d.ys.len(),
             );
+
+            let d = Drawing {
+                xs: d.xs.into_iter().map(|x| (x + off_x * i) * mul_x).collect(),
+                ys: d.ys.into_iter().map(|y| (y + off_y * i) * mul_y).collect(),
+                ..d
+            };
 
             sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
             paint(app, &d).await;
