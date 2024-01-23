@@ -1,18 +1,18 @@
-COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose
+DEVICE ?= remarkable
 
 # cargo install cross
 
 TARGET ?= armv7-unknown-linux-musleabihf
 LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
 
-DEVICE ?= remarkable
-
-RUN ?= docker run --rm #--user $$(id -u):$$(id -g)
-FLATC ?= $(RUN) -v "$(PWD)"/src:/src -v "$(PWD)"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
+DOCKER ?= docker
+COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 $(DOCKER) compose
+RUN ?= $(DOCKER) run --rm #--user $$(id -u):$$(id -g)
 
 GPB ?= 3.6.1
 PROTOC ?= $(RUN) -v "$(PWD):$(PWD)":rw -w "$(PWD)" znly/protoc:0.4.0
 PROTOLOCK ?= $(RUN) -v $(PWD):/protolock:rw -w /protolock nilslice/protolock  # commit --force
+FLATC ?= $(RUN) -v "$(PWD)"/src:/src -v "$(PWD)"/src:/dst neomantra/flatbuffers:clang-v1.12.0-cc0.6.0 flatc
 
 
 all: lint
@@ -73,12 +73,12 @@ marauder/src/strokes/strokes_generated.rs: marauder/src/strokes/strokes.fbs
 whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: WEBHOST ?= http://fknwkdacd.com:18888/s
 whiteboard: EXE = whiteboard
-whiteboard: BIN = ./target/$(TARGET)/release/$(EXE)
 whiteboard: marauder/src/strokes/strokes_generated.rs fmt
-	cross clippy --package=marauder --target=$(TARGET) -- -W clippy::pedantic
-	cross build --package=marauder --target=$(TARGET) --release --bin $(EXE) --locked --frozen --offline
+	cross clippy --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=marauder -- -W clippy::pedantic
+	cross build --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=marauder --bin $(EXE) --release
+	du -sh ./target/x/$(TARGET)/release/$(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	rsync -a --stats --progress $(BIN) $(DEVICE):
+	rsync -a --stats --progress ./target/x/$(TARGET)/release/$(EXE) $(DEVICE):
 	ssh $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug WHITEBOARD_WEBHOST=$(WEBHOST) ./$(EXE) --host=$(HOST) | tail -f'
 
 
@@ -88,12 +88,12 @@ whiteboard: marauder/src/strokes/strokes_generated.rs fmt
 #tmux send-keys -t rM-scrolls:0 'echo y' Enter
 
 scrolls: EXE = scrolls
-scrolls: BIN = ./target/$(TARGET)/release/$(EXE)
 scrolls: SES = rM-$(EXE)
 scrolls: fmt
-	cross clippy --locked --frozen --offline --all-features --target=$(TARGET) --package=$(EXE) -- -D warnings --no-deps \
+	cross clippy --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) -- -D warnings --no-deps \
 	  -W clippy::cast_lossless -W clippy::redundant_closure_for_method_calls -W clippy::str_to_string
-	cross build  --locked --frozen --offline --all-features --target=$(TARGET) --package=$(EXE) --bin $(EXE)  --release
+	cross build --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) --bin $(EXE) --release
+	du -sh ./target/x/$(TARGET)/release/$(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
-	rsync -a --stats --progress $(BIN) "$$(ls -t ./*.jsonl | head -n1)" $(DEVICE):
+	rsync -a --stats --progress ./target/x/$(TARGET)/release/$(EXE) "$$(ls -t ./*.jsonl | head -n1)" $(DEVICE):
 	ssh -t $(DEVICE) 'RUST_BACKTRACE=1 RUST_LOG=debug ./$(EXE) '"$$(ls -t ./*.jsonl | head -n1)"
