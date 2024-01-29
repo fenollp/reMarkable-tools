@@ -980,13 +980,12 @@ checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "libremarkable"
-version = "0.6.2"
-source = "git+https://github.com/canselcik/libremarkable?branch=master#f0d6240a77a111641c5cfa0a3023041c69478d55"
+version = "0.7.0"
+source = "git+https://github.com/canselcik/libremarkable?branch=master#3c0e73b353bfb26aeed8884062b610a585f8d9f8"
 dependencies = [
  "aabb-quadtree",
  "atomic",
  "cgmath",
- "env_logger",
  "epoll",
  "evdev",
  "fxhash",
