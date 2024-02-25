@@ -15,6 +15,7 @@ use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
 mod jsonl;
 mod ndjson;
 mod paint;
+mod svg;
 
 // const TOOLBAR_BAR_WIDTH: u32 = 2;
 // const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
@@ -77,6 +78,7 @@ async fn paint_scrolls(app: &mut ApplicationContext<'_>) -> Result<()> {
         match fpath {
             _ if fpath.ends_with(".jsonl") => jsonl::read_and_paint(app, fpath).await?,
             _ if fpath.ends_with(".ndjson") => ndjson::read_and_paint(app, fpath).await?,
+            _ if fpath.ends_with(".svg") => svg::read_and_paint(app, fpath).await?,
             _ => error!(target:env!("CARGO_PKG_NAME"), "No idea how to read {fpath}"),
         }
         sleep(DRAWING_PACE).await;
