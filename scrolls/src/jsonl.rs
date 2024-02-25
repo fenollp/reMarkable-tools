@@ -3,12 +3,15 @@ use std::{collections::HashSet, env};
 use anyhow::Result;
 use libremarkable::appctx::ApplicationContext;
 use log::info;
-use pb::proto::hypercards::{drawing, Drawing};
+use pb::proto::hypercards::{drawing::Color, Drawing};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;
 use tokio::time::sleep;
 
 use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+
+const PAUSE: bool = true;
+const SYNC: bool = false;
 
 pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
     let mut ring = AllocRingBuffer::new(37);
@@ -19,7 +22,7 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
         let c = d.color();
 
         info!(target:env!("CARGO_PKG_NAME"), "{act} XxYxPxW: {x}x{y}x{p}x{w}",
-            act = if c==drawing::Color::Black {"drawing"} else {"erasing"},
+            act = if c==Color::Black {"drawing"} else {"erasing"},
             x = d.xs.len(),
             y = d.ys.len(),
             p = d.pressures.len(),
@@ -31,22 +34,24 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
             HashSet::from([d.ys.len(), d.pressures.len(), d.widths.len()])
         );
 
-        sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
-        paint(app, &d).await;
+        if PAUSE {
+            sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
+        }
+        paint(app, &d, PAUSE, SYNC).await;
 
-        if c == drawing::Color::Black {
+        if c == Color::Black {
             ring.enqueue(d.clone());
         }
         while ring.is_full() {
             let Some(x) = ring.dequeue() else { break };
-            let x = Drawing { color: drawing::Color::White.into(), ..x };
-            paint(app, &x).await;
+            let x = Drawing { color: Color::White.into(), ..x };
+            paint(app, &x, PAUSE, SYNC).await;
         }
     }
 
     for x in ring.drain() {
-        let x = Drawing { color: drawing::Color::White.into(), ..x };
-        paint(app, &x).await;
+        let x = Drawing { color: Color::White.into(), ..x };
+        paint(app, &x, PAUSE, SYNC).await;
     }
     Ok(())
 }
@@ -63,9 +68,9 @@ pub(crate) struct DrawingBis {
 impl From<DrawingBis> for Drawing {
     fn from(DrawingBis { xs, ys, pressures, widths, color }: DrawingBis) -> Self {
         let color = match color.to_lowercase().as_ref() {
-            "black" => drawing::Color::Black,
-            "white" => drawing::Color::White,
-            _ => drawing::Color::Invisible,
+            "black" => Color::Black,
+            "white" => Color::White,
+            _ => Color::Invisible,
         } as i32;
         Self { xs, ys, pressures, widths, color }
     }
@@ -104,5 +109,5 @@ fn reads_a_drawing_from_jsonl() {
     assert_eq!(d().ys, p.ys);
     assert_eq!(d().pressures, p.pressures);
     assert_eq!(d().widths, p.widths);
-    assert_eq!(drawing::Color::Black, p.color());
+    assert_eq!(Color::Black, p.color());
 }

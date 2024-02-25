@@ -1,30 +1,14 @@
 use std::{env, process::Command};
 
 use anyhow::Result;
-use libremarkable::{
-    // ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
-    appctx,
-    appctx::ApplicationContext,
-};
+use libremarkable::appctx::{self, ApplicationContext};
 use log::{debug, error, info};
-use pb::proto::hypercards::{drawing, Drawing};
-use tokio::{task::spawn_blocking, time::sleep};
-
-use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+use tokio::task::spawn_blocking;
 
 mod jsonl;
 mod ndjson;
 mod paint;
 mod svg;
-
-// const TOOLBAR_BAR_WIDTH: u32 = 2;
-// const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
-// const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
-//     top: TOOLBAR_HEIGHT,
-//     left: 0,
-//     height: DISPLAYHEIGHT as u32 - TOOLBAR_HEIGHT,
-//     width: DISPLAYWIDTH as u32,
-// };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,33 +16,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app: appctx::ApplicationContext<'_> = appctx::ApplicationContext::default();
     app.clear(true);
-    // app.add_element(
-    //     "canvasRegion",
-    //     UIElementWrapper {
-    //         position: CANVAS_REGION.top_left().cast().unwrap()
-    //             + cgmath::vec2(0, -(TOOLBAR_BAR_WIDTH as i32)),
-    //         refresh: UIConstraintRefresh::RefreshAndWait,
-    //         inner: UIElement::Region {
-    //             size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
-    //             border_px: 0,
-    //             border_color: color::BLACK,
-    //         },
-    //         ..Default::default()
-    //     },
-    // );
     app.draw_elements();
 
     let appref1 = app.upgrade_ref();
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
-            paint_mouldings(appref1).await;
-        });
-    });
-
-    let appref2 = app.upgrade_ref();
-    spawn_blocking(move || {
-        tokio::runtime::Handle::current().block_on(async move {
-            if let Err(e) = paint_scrolls(appref2).await {
+            if let Err(e) = paint_scrolls(appref1).await {
                 error!(target:env!("CARGO_PKG_NAME"), "Error: {e}");
             }
             Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
@@ -67,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     info!("Init complete. Beginning event dispatch...");
-    app.start_event_loop(false, false, false, |_ctx, evt| debug!("[event] {evt:?}"));
+    app.start_event_loop(false, true, false, |_ctx, evt| debug!("{evt:?}"));
 
     Ok(())
 }
@@ -81,29 +44,6 @@ async fn paint_scrolls(app: &mut ApplicationContext<'_>) -> Result<()> {
             _ if fpath.ends_with(".svg") => svg::read_and_paint(app, fpath).await?,
             _ => error!(target:env!("CARGO_PKG_NAME"), "No idea how to read {fpath}"),
         }
-        sleep(DRAWING_PACE).await;
     }
     Ok(())
-}
-
-async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
-    let c = drawing::Color::Black;
-    debug!("[paint_mouldings] drawing UI...");
-
-    let mut parts = drawings::title_whiteboard::f(c);
-    for part in &mut parts {
-        for w in &mut part.widths {
-            *w /= 2;
-        }
-    }
-    paint_vec(app, &parts).await;
-}
-
-async fn paint_vec(app: &mut ApplicationContext<'_>, xs: &[Drawing]) {
-    for (i, x) in xs.iter().enumerate() {
-        if i != 0 {
-            sleep(INTER_DRAWING_PACE).await;
-        }
-        paint(app, x).await;
-    }
 }

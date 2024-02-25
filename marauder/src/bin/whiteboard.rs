@@ -33,7 +33,7 @@ use log::{debug, error, info, warn};
 use marauder::fonts;
 use once_cell::sync::Lazy;
 use pb::proto::hypercards::{
-    drawing, event, screen_sharing_client::ScreenSharingClient,
+    drawing::Color, event, screen_sharing_client::ScreenSharingClient,
     whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
     SendScreenReq,
 };
@@ -416,8 +416,8 @@ fn maybe_send_drawing() {
     }
 
     let col = match scribbles[0].color {
-        color::WHITE => drawing::Color::White,
-        _ => drawing::Color::Black,
+        color::WHITE => Color::White,
+        _ => Color::Black,
     };
 
     debug!("locking TX");
@@ -606,7 +606,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
 
 async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     let col = match drawing.color() {
-        drawing::Color::White => color::WHITE,
+        Color::White => color::WHITE,
         _ => color::BLACK,
     };
     let (xs, ys, ps, ws) = (drawing.xs, drawing.ys, drawing.pressures, drawing.widths);
@@ -673,7 +673,7 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
     info!("REP = {:?}", rep);
 }
 
-async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: drawing::Color) {
+async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: Color) {
     let digit = match count {
         0 => FONT.get("0"),
         1 => FONT.get("1"),
@@ -706,13 +706,13 @@ async fn paint_vec(app: &mut ApplicationContext<'_>, xs: Vec<Drawing>) {
 }
 
 async fn repaint_people_counter(app: &mut ApplicationContext<'_>, o: u32, n: u32) {
-    paint_people_counter(app, o, drawing::Color::White).await;
-    paint_people_counter(app, n, drawing::Color::Black).await;
-    paint(app, top_bar(drawing::Color::Black)).await;
+    paint_people_counter(app, o, Color::White).await;
+    paint_people_counter(app, n, Color::Black).await;
+    paint(app, top_bar(Color::Black)).await;
 }
 
 async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
-    let c = drawing::Color::Black;
+    let c = Color::Black;
     debug!("[paint_mouldings] drawing UI...");
 
     let appref0 = app.upgrade_ref();
@@ -780,7 +780,7 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     });
 }
 
-fn top_bar(c: drawing::Color) -> Drawing {
+fn top_bar(c: Color) -> Drawing {
     let max_x: u32 = CANVAS_REGION.width;
     let mut xs: Vec<f32> = Vec::with_capacity(max_x.try_into().unwrap());
     for i in 1..xs.capacity() {
@@ -802,7 +802,7 @@ async fn paint_glyph(
     c0k: (f32, f32, f32),
     p: i32,
     w: u32,
-    c: drawing::Color,
+    c: Color,
 ) {
     let (x0, y0, k) = c0k;
     for (i, path) in glyph.iter().enumerate() {

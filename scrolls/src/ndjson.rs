@@ -1,56 +1,81 @@
-use std::{env, iter::repeat};
+use std::{env, iter::repeat, time::Duration};
 
 use anyhow::Result;
-use libremarkable::appctx::ApplicationContext;
+use libremarkable::{
+    appctx::ApplicationContext,
+    dimensions::{DISPLAYHEIGHT, DISPLAYWIDTH},
+};
 use log::info;
-use pb::proto::hypercards::{drawing, Drawing};
+use pb::proto::hypercards::{drawing::Color, Drawing};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+use crate::paint::{paint, INTER_DRAWING_PACE};
+
+#[test]
+fn sizes() {
+    use libremarkable::dimensions::{DISPLAYHEIGHT, DISPLAYWIDTH};
+
+    assert_eq!(DISPLAYHEIGHT / 100, 18);
+    assert_eq!(DISPLAYWIDTH / 75, 18);
+}
 
 pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
-    let mut ring = AllocRingBuffer::new(37);
+    const W: f32 = 2. * 75.;
+    const H: f32 = 2. * 100.;
+    const COLS: f32 = (DISPLAYWIDTH as f32 / W) * 2. - 1. - 1.;
+    const ROWS: f32 = (DISPLAYHEIGHT as f32 / H) * 2. - 1.;
+
+    const PAUSE: Duration = INTER_DRAWING_PACE;
+    const SYNC: bool = false;
+
+    let mut ring = AllocRingBuffer::new((COLS * ROWS - (COLS / 2. + 1.)) as usize);
 
     for (i, ds) in serde_jsonlines::json_lines(fpath)?.enumerate() {
         let ds: DrawingBis = ds?;
         let ds: Vec<Drawing> = ds.into_vec();
 
-        let (off_x, off_y) = (150f32, 200f32);
-        let (mul_x, mul_y) = (0.5f32, 0.5f32);
         let i = i as f32;
         for d in ds.into_iter() {
             let c = d.color();
 
-            info!(target:env!("CARGO_PKG_NAME"), "drawing XxY: {x}x{y}",
+            info!(target:env!("CARGO_PKG_NAME"), "drawing x:{} y:{} XxY: {x}x{y}",
+                (i / ROWS) % COLS,
+                i % ROWS,
                 x = d.xs.len(),
                 y = d.ys.len(),
             );
 
             let d = Drawing {
-                xs: d.xs.into_iter().map(|x| (x + off_x * i) * mul_x).collect(),
-                ys: d.ys.into_iter().map(|y| (y + off_y * i) * mul_y).collect(),
+                xs: d
+                    .xs
+                    .into_iter()
+                    .map(|x| (x) * (0.5 * (W / 200.)) + W * ((i / ROWS) % COLS))
+                    .collect(),
+                ys: d.ys.into_iter().map(|y| (y + H * (i % ROWS)) * (0.5 * (H / 200.))).collect(),
                 ..d
             };
 
-            sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
-            paint(app, &d).await;
+            paint(app, &d, false, SYNC).await;
+            sleep(PAUSE).await;
 
-            if c == drawing::Color::Black {
+            if c == Color::Black {
                 ring.enqueue(d.clone());
             }
             while ring.is_full() {
                 let Some(x) = ring.dequeue() else { break };
-                let x = Drawing { color: drawing::Color::White.into(), ..x };
-                paint(app, &x).await;
+                let x = Drawing { color: Color::White.into(), ..x };
+                paint(app, &x, false, SYNC).await;
+                sleep(PAUSE).await;
             }
         }
     }
 
     for x in ring.drain() {
-        let x = Drawing { color: drawing::Color::White.into(), ..x };
-        paint(app, &x).await;
+        let x = Drawing { color: Color::White.into(), ..x };
+        paint(app, &x, false, SYNC).await;
+        sleep(PAUSE).await;
     }
     Ok(())
 }
@@ -93,7 +118,7 @@ impl DrawingBis {
                     ys: ys.into_iter().map(f32::from).collect(),
                     pressures: repeat(PRESSURE).take(n).collect(),
                     widths: repeat(WIDTH).take(n).collect(),
-                    color: drawing::Color::Black as i32,
+                    color: Color::Black as i32,
                 }
             })
             .collect()
@@ -137,6 +162,6 @@ fn reads_a_drawing_from_jsonl() {
         assert_eq!(n, d.ys.len());
         assert_eq!(n, d.pressures.len());
         assert_eq!(n, d.widths.len());
-        assert_eq!(drawing::Color::Black, d.color());
+        assert_eq!(Color::Black, d.color());
     }
 }

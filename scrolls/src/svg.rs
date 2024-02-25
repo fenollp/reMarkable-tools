@@ -3,12 +3,15 @@ use std::io::BufRead;
 use anyhow::Result;
 use libremarkable::appctx::ApplicationContext;
 use log::info;
-use pb::proto::hypercards::{drawing, Drawing};
+use pb::proto::hypercards::{drawing::Color, Drawing};
 use quick_xml::events::Event;
 use svg_path_parser::parse_with_resolution;
 use tokio::time::sleep;
 
-use crate::paint::{paint_nopause, DRAWING_PACE, INTER_DRAWING_PACE};
+use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
+
+const PAUSE: bool = true;
+const SYNC: bool = false;
 
 // pub fn parse(svg: &str, tol: f64, preprocess: bool) -> Result<Vec<Polyline>, Error> {
 //     // Preprocess and simplify the SVG using the usvg library
@@ -32,11 +35,15 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
 
             let d = into_drawing(line);
 
-            paint_nopause(app, &d);
+            paint(app, &d, PAUSE, SYNC).await;
 
-            sleep(if false { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
+            if PAUSE {
+                sleep(if false { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
+            }
         }
-        sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
+        if PAUSE {
+            sleep(if true { DRAWING_PACE } else { INTER_DRAWING_PACE }).await;
+        }
     }
     Ok(())
 }
@@ -93,7 +100,7 @@ fn into_drawing(line: Vec<(f64, f64)>) -> Drawing {
         ys: line.iter().map(|(_, y)| (MUL_Y * (y + OFF_Y)) as f32).collect(),
         pressures: line.iter().map(|_| PRESSURE).collect(),
         widths: line.iter().map(|_| WIDTH).collect(),
-        color: drawing::Color::Black as i32,
+        color: Color::Black as i32,
     }
 }
 
@@ -351,7 +358,7 @@ x-height="300"
             ys: [706.0, -236.0].into(),
             pressures: [2000, 2000].into(),
             widths: [2, 2].into(),
-            color: drawing::Color::Black.into(),
+            color: Color::Black.into(),
         }
     );
 
@@ -413,7 +420,7 @@ x-height="300"
                 ys: [422.0, 422.0, 18.9, 18.9].into(),
                 pressures: [2000, 2000, 2000, 2000,].into(),
                 widths: [2, 2, 2, 2,].into(),
-                color: drawing::Color::Black.into(),
+                color: Color::Black.into(),
             }
         )]
     );
