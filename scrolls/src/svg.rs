@@ -338,6 +338,9 @@ x-height="300"
         "M90.934 380.72C249.656 495.275 393.374 416.706 414.309 267.72C435.244 118.734 352.343 17.4862 248.934 8.97017C145.525 0.454184 86.6368 71.3227 99.0603 147.408C110.863 219.69 200.384 251.749 417.967 221.86C635.55 191.971 725.071 224.03 736.874 296.312C749.297 372.397 690.409 443.265 587 434.749C483.591 426.233 400.69 324.986 421.625 176C442.56 27.0141 586.278 -51.5557 745 63",
         ]);
 
+    // assert!(svg2polylines::parse(path_pipe, 0.15, true).is_err());
+    assert_eq!(svg2polylines::parse(svg, 0.15, true).unwrap(), vec![]);
+
     let lines_pipe = parse_with_resolution(path_pipe, 64).collect::<Vec<_>>();
     assert_eq!(lines_pipe.len(), 1);
     assert!(!lines_pipe[0].0);
@@ -352,7 +355,53 @@ x-height="300"
         }
     );
 
+    use vsvg::{IntoBezPath, Point, Polyline};
+    // let poly = Polyline::new(vec![Point::new(107.0, 706.0), Point::new(107.0, -236.0)]);
+    // dbg!(poly.clone().into_bezpath());
+    // // dbg!(poly.clone().into_bezpath_with_tolerance(10.0 * DEFAULT_TOLERANCE));
+    // // dbg!(poly.clone().into_bezpath_with_tolerance(-10.0 * DEFAULT_TOLERANCE));
+    // // dbg!(poly.clone().into_bezpath_with_tolerance(DEFAULT_TOLERANCE / 10.0));
+    // assert_eq!(poly.into_points(), vec![]);
+    // [scrolls/src/svg.rs:360] poly.clone().into_bezpath() = BezPath(
+    //     [
+    //         MoveTo(
+    //             (107.0, 706.0),
+    //         ),
+    //         LineTo(
+    //             (107.0, -236.0),
+    //         ),
+    //     ],
+    // )
+    // thread 'svg::reads_a_drawing_from_svg_glyphs' panicked at scrolls/src/svg.rs:364:5:
+    // assertion `left == right` failed
+    //   left: [Point { data: [107.0, 706.0] }, Point { data: [107.0, -236.0] }]
+    //  right: []
+
+    // https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
+
     let lines_z = parse_with_resolution(path_z, 64).collect::<Vec<_>>();
+    // let poly = Polyline::new(vec![Point::new(107.0, 706.0), Point::new(107.0, -236.0)]);
+    let poly = Polyline::new(lines_z[0].1.iter().map(|(x, y)| Point::new(*x, *y)).collect());
+    assert_eq!(
+        poly.clone().into_points(),
+        vec![
+            Point::new(78.8, 422.0),
+            Point::new(378.0, 422.0),
+            Point::new(72.5, 18.9),
+            Point::new(400.0, 18.9)
+        ]
+    );
+    assert_eq!(poly.into_bezpath(), {
+        use vsvg::exports::kurbo::BezPath;
+
+        let mut b = BezPath::new();
+        b.move_to((78.8, 422.0));
+        b.line_to((378.0, 422.0));
+        b.line_to((72.5, 18.9));
+        b.line_to((400.0, 18.9));
+        b
+    });
+
     assert_eq!(lines_z.len(), 1);
     assert!(!lines_z[0].0);
     assert_eq!(
@@ -369,3 +418,9 @@ x-height="300"
         )]
     );
 }
+
+// https://github.com/dbrgn/svg2polylines/blob/main/src/lib.rs
+
+// https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
+
+// https://docs.rs/vcr-cassette/latest/vcr_cassette/

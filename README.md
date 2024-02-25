@@ -259,3 +259,7 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 * [General Virtual Sketching Framework for Vector Line Art (SIGGRAPH 2021)](https://markmohr.github.io/virtual_sketching/)
 
 * [Recognition of handwritten flowcharts using CNNs to generate C](https://github.com/dbetm/handwritten-flowchart-with-cnn)
+
+* rLCD devices
+	* [HannsNote2 10"](https://www.hannspree.com/hannsnote2)
+	* [Sun Vision Display 32”](https://www.sunvisiondisplay.com/store/)
