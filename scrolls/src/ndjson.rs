@@ -11,12 +11,10 @@ use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::paint::{paint, INTER_DRAWING_PACE};
+use crate::paint::paint;
 
 #[test]
 fn sizes() {
-    use libremarkable::dimensions::{DISPLAYHEIGHT, DISPLAYWIDTH};
-
     assert_eq!(DISPLAYHEIGHT / 100, 18);
     assert_eq!(DISPLAYWIDTH / 75, 18);
 }
@@ -27,10 +25,10 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
     const COLS: f32 = (DISPLAYWIDTH as f32 / W) * 2. - 1. - 1.;
     const ROWS: f32 = (DISPLAYHEIGHT as f32 / H) * 2. - 1.;
 
-    const PAUSE: Duration = INTER_DRAWING_PACE;
+    const PAUSE: Duration = Duration::from_millis(50);
     const SYNC: bool = false;
 
-    let mut ring = AllocRingBuffer::new((COLS * ROWS - (COLS / 2. + 1.)) as usize);
+    let mut ring = AllocRingBuffer::new((COLS / 2.) as usize);
 
     for (i, ds) in serde_jsonlines::json_lines(fpath)?.enumerate() {
         let ds: DrawingBis = ds?;
@@ -48,16 +46,12 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
             );
 
             let d = Drawing {
-                xs: d
-                    .xs
-                    .into_iter()
-                    .map(|x| (x) * (0.5 * (W / 200.)) + W * ((i / ROWS) % COLS))
-                    .collect(),
-                ys: d.ys.into_iter().map(|y| (y + H * (i % ROWS)) * (0.5 * (H / 200.))).collect(),
+                xs: d.xs.into_iter().map(|x| 0.5 * x + W * ((i / ROWS) % COLS)).collect(),
+                ys: d.ys.into_iter().map(|y| 0.5 * y + H * (i % ROWS)).collect(),
                 ..d
             };
 
-            paint(app, &d, false, SYNC).await;
+            paint(app, &d, true, SYNC).await;
             sleep(PAUSE).await;
 
             if c == Color::Black {
@@ -74,7 +68,7 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
 
     for x in ring.drain() {
         let x = Drawing { color: Color::White.into(), ..x };
-        paint(app, &x, false, SYNC).await;
+        paint(app, &x, true, SYNC).await;
         sleep(PAUSE).await;
     }
     Ok(())
