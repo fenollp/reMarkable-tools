@@ -1,11 +1,17 @@
-use std::env;
+use std::{env, path::PathBuf};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Prepend ./bin to $PATH so our `protoc` is found first
-    let mut new_path: String = "./bin:".to_owned();
-    new_path.push_str(&env::var("PATH").unwrap());
-    env::set_var("PATH", new_path);
+use anyhow::{bail, Result};
 
-    tonic_build::configure().build_server(false).compile(&["proto/whiteboard.proto"], &["."])?;
+fn main() -> Result<()> {
+    prepend_path("./bin")?; // so our `protoc` is found first
+    tonic_build::compile_protos("proto/whiteboard.proto")?;
+    Ok(())
+}
+
+fn prepend_path(dir: &str) -> Result<()> {
+    const PATH: &str = "PATH";
+    let Some(path) = env::var_os(PATH) else { bail!("No {PATH} env?") };
+    let paths = env::split_paths(&path).chain([PathBuf::from(dir)]);
+    env::set_var(PATH, env::join_paths(paths)?);
     Ok(())
 }
