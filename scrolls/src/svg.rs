@@ -1,3 +1,13 @@
+///! Decode .svg files
+///!
+///! https://github.com/dbrgn/svg2polylines/blob/main/src/lib.rs
+///! https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
+///! https://docs.rs/vcr-cassette/latest/vcr_cassette/
+///! https://pypi.org/project/vpype-gcode/
+///! https://github.com/orenbenkiki/spiropath
+///! https://www.youtube.com/watch?v=68gorVDj95Q
+///! https://www.reddit.com/r/PlotterArt/comments/15jhzuv/need_some_advice_on_options/
+///!
 use std::io::BufRead;
 
 use anyhow::Result;
@@ -12,17 +22,6 @@ use crate::paint::{paint, DRAWING_PACE, INTER_DRAWING_PACE};
 
 const PAUSE: bool = true;
 const SYNC: bool = false;
-
-// pub fn parse(svg: &str, tol: f64, preprocess: bool) -> Result<Vec<Polyline>, Error> {
-//     // Preprocess and simplify the SVG using the usvg library
-//     let svg = if preprocess {
-//         let usvg_input_options = usvg::Options::default();
-//         let usvg_tree = usvg::Tree::from_str(svg, &usvg_input_options.to_ref())?;
-//         let usvg_xml_options = usvg::XmlOptions::default();
-//         usvg_tree.to_string(&usvg_xml_options)
-//     } else {
-//         svg.to_string()
-//     };
 
 pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: String) -> Result<()> {
     let mut reader = quick_xml::Reader::from_file(fpath)?;
@@ -47,8 +46,6 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
     }
     Ok(())
 }
-
-//parse axidraw's and the font SVGs
 
 fn browse<T: BufRead>(mut reader: quick_xml::Reader<T>) -> Result<Vec<(String, Option<String>)>> {
     let mut paths = vec![];
@@ -384,6 +381,8 @@ x-height="300"
     //   left: [Point { data: [107.0, 706.0] }, Point { data: [107.0, -236.0] }]
     //  right: []
 
+    // TODO: fit that data into a `fb.partial_refresh(..)` call
+
     // https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
 
     let lines_z = parse_with_resolution(path_z, 64).collect::<Vec<_>>();
@@ -425,9 +424,3 @@ x-height="300"
         )]
     );
 }
-
-// https://github.com/dbrgn/svg2polylines/blob/main/src/lib.rs
-
-// https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
-
-// https://docs.rs/vcr-cassette/latest/vcr_cassette/

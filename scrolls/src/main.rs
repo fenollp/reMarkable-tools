@@ -1,3 +1,8 @@
+///! Replay files
+///!
+///! vfont https://news.ycombinator.com/item?id=39174421
+///! vpdf https://willcrichton.net/notes/portable-epubs/#epub-content%2FEPUB%2Findex.xhtml$
+///!
 use std::{env, process::Command};
 
 use anyhow::Result;

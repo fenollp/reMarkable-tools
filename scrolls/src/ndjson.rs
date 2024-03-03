@@ -1,3 +1,11 @@
+///! Decode .ndjson files
+///!
+///! https://github.com/googlecreativelab/quickdraw-dataset
+///! https://github.com/googlecreativelab/quickdraw-dataset#projects-using-the-dataset
+///! https://magenta.tensorflow.org/sketch_rnn
+///! https://github.com/googlecreativelab/quickdraw-dataset/issues/19#issuecomment-402247262
+///! https://www.wikiwand.com/fr/Algorithme_de_Knuth-Morris-Pratt
+///!
 use std::{env, iter::repeat, time::Duration};
 
 use anyhow::Result;
@@ -60,8 +68,8 @@ pub(crate) async fn read_and_paint(app: &mut ApplicationContext<'_>, fpath: Stri
             while ring.is_full() {
                 let Some(x) = ring.dequeue() else { break };
                 let x = Drawing { color: Color::White.into(), ..x };
-                paint(app, &x, false, SYNC).await;
-                sleep(PAUSE).await;
+                paint(app, &x, true, SYNC).await;
+                // sleep(PAUSE).await;
             }
         }
     }
