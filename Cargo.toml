@@ -20,7 +20,6 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
 env_logger = "0.10"
-function_name = "0.3"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 itertools = "0.12"
 log = "0.4"
