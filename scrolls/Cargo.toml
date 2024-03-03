@@ -17,6 +17,8 @@ ringbuffer.workspace = true
 serde-jsonlines.workspace = true
 serde.workspace = true
 tokio.workspace = true
+
+# TODO: filter out + move to workspace
 # lyon_geom = "1"
 quick-xml = "0.23"
 svg-path-parser = "0.1.1"
