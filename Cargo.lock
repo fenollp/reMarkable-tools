@@ -1956,7 +1956,7 @@ dependencies = [
  "svg2polylines",
  "svgtypes 0.8.2",
  "tokio",
- "usvg 0.23.0",
+ "usvg 0.35.0",
  "vsvg",
 ]
 
