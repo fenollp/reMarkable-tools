@@ -1,6 +1,7 @@
-#!/bin/sh
+#!/bin/sh -eux
 
-echo "$@"
+echo $(id -u)
+echo $(id -g)
 
 docker run \
        --rm \
