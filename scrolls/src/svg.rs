@@ -1,13 +1,13 @@
-///! Decode .svg files
-///!
-///! https://github.com/dbrgn/svg2polylines/blob/main/src/lib.rs
-///! https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
-///! https://docs.rs/vcr-cassette/latest/vcr_cassette/
-///! https://pypi.org/project/vpype-gcode/
-///! https://github.com/orenbenkiki/spiropath
-///! https://www.youtube.com/watch?v=68gorVDj95Q
-///! https://www.reddit.com/r/PlotterArt/comments/15jhzuv/need_some_advice_on_options/
-///!
+//! Decode .svg files
+//!
+//! https://github.com/dbrgn/svg2polylines/blob/main/src/lib.rs
+//! https://docs.rs/vsvg/latest/vsvg/struct.Polyline.html
+//! https://docs.rs/vcr-cassette/latest/vcr_cassette/
+//! https://pypi.org/project/vpype-gcode/
+//! https://github.com/orenbenkiki/spiropath
+//! https://www.youtube.com/watch?v=68gorVDj95Q
+//! https://www.reddit.com/r/PlotterArt/comments/15jhzuv/need_some_advice_on_options/
+//!
 use std::io::BufRead;
 
 use anyhow::Result;

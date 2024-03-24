@@ -1,11 +1,11 @@
-///! Decode .ndjson files
-///!
-///! https://github.com/googlecreativelab/quickdraw-dataset
-///! https://github.com/googlecreativelab/quickdraw-dataset#projects-using-the-dataset
-///! https://magenta.tensorflow.org/sketch_rnn
-///! https://github.com/googlecreativelab/quickdraw-dataset/issues/19#issuecomment-402247262
-///! https://www.wikiwand.com/fr/Algorithme_de_Knuth-Morris-Pratt
-///!
+//! Decode .ndjson files
+//!
+//! https://github.com/googlecreativelab/quickdraw-dataset
+//! https://github.com/googlecreativelab/quickdraw-dataset#projects-using-the-dataset
+//! https://magenta.tensorflow.org/sketch_rnn
+//! https://github.com/googlecreativelab/quickdraw-dataset/issues/19#issuecomment-402247262
+//! https://www.wikiwand.com/fr/Algorithme_de_Knuth-Morris-Pratt
+//!
 use std::{env, iter::repeat, time::Duration};
 
 use anyhow::Result;
