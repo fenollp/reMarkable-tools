@@ -8,7 +8,9 @@ members = [
 
 [workspace.package]
 version = "0.3.8"
-authors = ["Pierre Fenoll <pierrefenoll@gmail.com>"]
+authors = [
+    "Pierre Fenoll <pierrefenoll@gmail.com>",
+]
 repository = "https://github.com/fenollp/reMarkable-tools"
 edition = "2021"
 

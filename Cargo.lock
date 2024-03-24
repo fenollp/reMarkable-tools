@@ -1527,7 +1527,6 @@ dependencies = [
 name = "pb"
 version = "0.3.8"
 dependencies = [
- "anyhow",
  "prost",
  "tonic",
  "tonic-build",
