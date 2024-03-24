@@ -8,11 +8,11 @@ members = [
 
 [workspace.package]
 version = "0.3.8"
+edition = "2021"
+repository = "https://github.com/fenollp/reMarkable-tools"
 authors = [
     "Pierre Fenoll <pierrefenoll@gmail.com>",
 ]
-repository = "https://github.com/fenollp/reMarkable-tools"
-edition = "2021"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -28,6 +28,7 @@ log = "0.4"
 nom = "5"
 once_cell = "1"
 prost = "0.12"
+protoc-bin-vendored = "3"
 qrcode-generator = "4"
 quick-xml = { version = "0.22", features = ["serialize"] }
 rand = "0.8"
