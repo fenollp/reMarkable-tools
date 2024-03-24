@@ -15,8 +15,8 @@ ls -lha /usr >&2 || true
 ls -lha /usr/bin >&2 || true
 ls -lha /usr/bin/docker >&2 || true
 
-su pete
-whoami >&2 || truee
+# su pete
+whoami >&2 || true
 newgrp docker >&2 || true ######
 
 ls -lha ./protoc >&2 || true
