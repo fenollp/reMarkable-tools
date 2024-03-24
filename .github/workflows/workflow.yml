@@ -39,7 +39,7 @@ jobs:
         use-cross: true
         command: build
         args: --package=marauder --target=armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked --frozen --offline
-    - uses: softprops/action-gh-release@v1 # TODO: https://github.com/actions/create-release/issues/29
+    - uses: softprops/action-gh-release@v2 # TODO: https://github.com/actions/create-release/issues/29
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
