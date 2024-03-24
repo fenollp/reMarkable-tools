@@ -2067,7 +2067,7 @@ dependencies = [
  "serde-jsonlines",
  "svg-path-parser",
  "svg2polylines",
- "svgtypes 0.8.2",
+ "svgtypes 0.11.0",
  "tokio",
  "usvg 0.35.0",
  "vsvg",
