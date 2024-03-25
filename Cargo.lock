@@ -2067,7 +2067,7 @@ dependencies = [
  "serde-jsonlines",
  "svg-path-parser",
  "svg2polylines",
- "svgtypes 0.11.0",
+ "svgtypes 0.14.0",
  "tokio",
  "usvg 0.35.0",
  "vsvg",
@@ -2273,6 +2273,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed4b0611e7f3277f68c0fa18e385d9e2d26923691379690039548f867cef02a7"
 dependencies = [
  "kurbo 0.9.5",
+ "siphasher",
+]
+
+[[package]]
+name = "svgtypes"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59d7618f12b51be8171a7cfdda1e7a93f79cbc57c4e7adf89a749cf671125241"
+dependencies = [
+ "kurbo 0.10.4",
  "siphasher",
 ]
 
