@@ -30,7 +30,7 @@ once_cell = "1"
 prost = "0.12"
 protoc-bin-vendored = "3"
 qrcode-generator = "4"
-quick-xml = { version = "0.22", features = ["serialize"] }
+quick-xml = { version = "0.30", features = ["serialize"] }
 rand = "0.8"
 ringbuffer = "0.15"
 serde = { version = "1", features = ["derive"] }
