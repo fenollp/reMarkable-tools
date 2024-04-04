@@ -1212,6 +1212,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kurbo"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e5aa9f0f96a938266bdb12928a67169e8d22c6a786fda8ed984b85e6ba93c3c"
+dependencies = [
+ "arrayvec 0.7.4",
+ "smallvec",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2112,7 +2122,7 @@ dependencies = [
  "serde-jsonlines",
  "svg-path-parser",
  "svg2polylines",
- "svgtypes 0.14.0",
+ "svgtypes 0.15.0",
  "tokio",
  "usvg 0.40.0",
  "vsvg",
@@ -2189,6 +2199,12 @@ name = "siphasher"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
+
+[[package]]
+name = "siphasher"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "slab"
@@ -2308,7 +2324,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22975e8a2bac6a76bb54f898a6b18764633b00e780330f0b689f65afb3975564"
 dependencies = [
- "siphasher",
+ "siphasher 0.3.11",
 ]
 
 [[package]]
@@ -2318,7 +2334,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed4b0611e7f3277f68c0fa18e385d9e2d26923691379690039548f867cef02a7"
 dependencies = [
  "kurbo 0.9.5",
- "siphasher",
+ "siphasher 0.3.11",
 ]
 
 [[package]]
@@ -2328,7 +2344,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59d7618f12b51be8171a7cfdda1e7a93f79cbc57c4e7adf89a749cf671125241"
 dependencies = [
  "kurbo 0.10.4",
- "siphasher",
+ "siphasher 0.3.11",
+]
+
+[[package]]
+name = "svgtypes"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d97ca9a891c9c70da8139ac9d8e8ea36a210fa21bb50eccd75d4a9561c83e87f"
+dependencies = [
+ "kurbo 0.11.0",
+ "siphasher 1.0.1",
 ]
 
 [[package]]
@@ -2749,7 +2775,7 @@ dependencies = [
  "roxmltree 0.14.1",
  "rustybuzz 0.5.1",
  "simplecss",
- "siphasher",
+ "siphasher 0.3.11",
  "svgtypes 0.8.2",
  "ttf-parser 0.15.2",
  "unicode-bidi",
@@ -2790,7 +2816,7 @@ dependencies = [
  "roxmltree 0.19.0",
  "rustybuzz 0.12.1",
  "simplecss",
- "siphasher",
+ "siphasher 0.3.11",
  "strict-num",
  "svgtypes 0.14.0",
  "tiny-skia-path 0.11.4",
@@ -2813,7 +2839,7 @@ dependencies = [
  "log",
  "roxmltree 0.18.1",
  "simplecss",
- "siphasher",
+ "siphasher 0.3.11",
  "svgtypes 0.11.0",
  "usvg-tree",
 ]
