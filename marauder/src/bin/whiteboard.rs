@@ -1,10 +1,9 @@
-use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 use std::{
     collections::VecDeque,
     process::Command,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
-        Mutex, RwLock,
+        mpsc, Mutex, RwLock,
     },
     time::Duration,
 };
@@ -86,6 +85,9 @@ struct Scribble {
     pressure: i32,
 }
 
+const REPO: &str = env!("CARGO_PKG_REPOSITORY");
+const VSN: &str = env!("CARGO_PKG_VERSION");
+
 const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
 const TOOLBAR_REGION: mxcfb_rect =
@@ -140,8 +142,10 @@ fn color2bool() {
     assert!(matches!(black(true), color::BLACK));
 }
 
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     env_logger::init();
 
     let mut args = Args::parse();
@@ -189,32 +193,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
-    {
+    let ch = {
         let host = ARGS.read().unwrap().flag_host.clone();
         info!("[main] using gRPC host: {host:?}");
-        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_owned();
-        let endpoint = Endpoint::from_shared(host)
+        Endpoint::from_shared(host)
             .unwrap()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(4))
-            .user_agent(uaprexix + env!("CARGO_PKG_VERSION"))
-            .unwrap();
-        let mut wcher = CHER.write().unwrap();
-        *wcher = Some(endpoint.connect_lazy());
-    }
+            .user_agent(format!("{REPO}/releases/tag/v{VSN}"))
+            .unwrap()
+            .connect_lazy()
+    };
+    *CHER.write().unwrap() = Some(ch.clone());
 
+    let ch2 = ch.clone();
     let appref2 = app.upgrade_ref();
     info!("[main] spawn-ing loop_recv");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop {
-                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
-                    loop_recv(appref2, ch).await;
-                    break;
+                if let Err(e) = loop_recv(appref2, ch2.clone()).await {
+                    error!("[loop_recv] failure: {e}");
                 }
             }
-            info!("[loop_recv] terminated");
         })
     });
 
@@ -558,13 +560,13 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
     }
 }
 
-async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
+async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
     let req = RecvEventsReq { room_id: ARGS.read().unwrap().flag_room.clone() };
     let user_id = ARGS.read().unwrap().user_id.clone();
 
     let ms = 100;
     info!("[loop_recv] creating stream");
-    let mut client = WhiteboardClient::new(ch);
+    let mut client = WhiteboardClient::new(ch.clone());
     let mut stream = {
         let mut delays = (0..).map(|n| 2u64.pow(n)).take_while(|n| *n < ms);
 
@@ -574,12 +576,12 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
 
             match client.recv_events(req).await {
                 Ok(r) => {
-                    info!("[loop_recv] Connection established!");
+                    info!("[loop_recv] connection established!");
                     break r.into_inner();
                 }
                 Err(e) => {
                     let pause = Duration::from_millis(delays.next().unwrap_or(ms));
-                    warn!("[loop_recv] Couldn't connect, next attempt in {pause:?}: {e}");
+                    warn!("[loop_recv] couldn't connect, next attempt in {pause:?}: {e}");
                     sleep(pause).await
                 }
             }
@@ -598,7 +600,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                     if len < 3 {
                         continue;
                     }
-                    debug!("[loop_recv] drawing {:?} points", len - 2);
+                    debug!("[loop_recv] drawing {len:?} points");
                     paint(app, drawing).await;
                     info!("[loop_recv] painted");
                     NEEDS_SHARING.store(true, Ordering::Relaxed);
