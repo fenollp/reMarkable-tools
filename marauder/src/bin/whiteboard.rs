@@ -40,6 +40,7 @@ use pb::proto::hypercards::{
 use qrcode_generator::QrCodeEcc;
 use tokio::{spawn, task::spawn_blocking, time::sleep};
 use tonic::{
+    metadata::AsciiMetadataValue,
     transport::{Channel, Endpoint},
     Request,
 };
@@ -487,7 +488,8 @@ fn add_xuser<T>(req: &mut Request<T>, user_id: String) {
     let md = Request::metadata_mut(req);
     let key = "x-user";
     assert!(md.get(key).is_none());
-    md.insert(key, user_id.parse().unwrap());
+    let user_id: AsciiMetadataValue = user_id.parse().unwrap();
+    md.insert(key, user_id);
 }
 
 async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
@@ -557,12 +559,32 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
 }
 
 async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
-    let mut req = Request::new(RecvEventsReq { room_id: ARGS.read().unwrap().flag_room.clone() });
-    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
+    let req = RecvEventsReq { room_id: ARGS.read().unwrap().flag_room.clone() };
+    let user_id = ARGS.read().unwrap().user_id.clone();
 
+    let ms = 100;
     info!("[loop_recv] creating stream");
     let mut client = WhiteboardClient::new(ch);
-    let mut stream = client.recv_events(req).await.unwrap().into_inner();
+    let mut stream = {
+        let mut delays = (0..).map(|n| 2u64.pow(n)).take_while(|n| *n < ms);
+
+        loop {
+            let mut req = Request::new(req.clone());
+            add_xuser(&mut req, user_id.clone());
+
+            match client.recv_events(req).await {
+                Ok(r) => {
+                    info!("[loop_recv] Connection established!");
+                    break r.into_inner();
+                }
+                Err(e) => {
+                    let pause = Duration::from_millis(delays.next().unwrap_or(ms));
+                    warn!("[loop_recv] Couldn't connect, next attempt in {pause:?}: {e}");
+                    sleep(pause).await
+                }
+            }
+        }
+    };
     info!("[loop_recv] receiving...");
 
     loop {
