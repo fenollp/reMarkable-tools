@@ -1338,6 +1338,7 @@ dependencies = [
 name = "marauder"
 version = "0.3.8"
 dependencies = [
+ "anyhow",
  "async-stream",
  "atomic",
  "chrono",
