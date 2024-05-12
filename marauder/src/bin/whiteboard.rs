@@ -458,18 +458,18 @@ fn add_xuser<T>(req: &mut Request<T>, user_id: &str) -> Result<()> {
 async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
     let mut client = ScreenSharingClient::new(ch);
 
+    let mut counter = 0;
     let mut previous_checksum: u64 = 0;
-    let (mut failsafe, wrapat) = (0, 10);
-    let mut ticker = interval(Duration::from_millis(500));
+    let mut ticker = interval(Duration::from_millis(1_500));
     loop {
         ticker.tick().await;
 
-        failsafe += 1;
-        let wrapped = failsafe == wrapat;
-        if wrapped {
-            failsafe = 0;
+        let wakeup = counter == 10;
+        if wakeup {
+            counter = 0;
         }
-        if !(wrapped || NEEDS_SHARING.load(Ordering::Relaxed)) {
+        counter += 1;
+        if !(wakeup || NEEDS_SHARING.load(Ordering::Relaxed)) {
             continue;
         }
 
@@ -531,9 +531,8 @@ async fn loop_fwd(rx: Receiver<Drawing>, ch: Channel) -> Result<()> {
 }
 
 async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
-    let args = ARGS.get().unwrap();
-    let req = RecvEventsReq { room_id: args.room.clone() };
-    let user_id = args.user_id.clone();
+    let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
+    let req = RecvEventsReq { room_id: room.clone() };
 
     let ms = 100;
     info!("[loop_recv] creating stream");
@@ -543,7 +542,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> 
 
         loop {
             let mut req = Request::new(req.clone());
-            add_xuser(&mut req, &user_id)?;
+            add_xuser(&mut req, user_id)?;
 
             match client.recv_events(req).await {
                 Ok(r) => {
