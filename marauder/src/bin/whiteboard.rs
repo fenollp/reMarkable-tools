@@ -119,7 +119,7 @@ const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
 
 fn maybe_from_env(val: &mut String, var: &str) {
     if let Ok(newval) = std::env::var(var) {
-        info!("using {:?} from env: {:?}", var, newval);
+        info!("using {var:?} from env: {newval:?}");
         *val = newval;
     }
 }
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     maybe_from_env(&mut args.flag_room, "WHITEBOARD_ROOM");
     maybe_from_env(&mut args.flag_host, "WHITEBOARD_HOST");
     maybe_from_env(&mut args.flag_webhost, "WHITEBOARD_WEBHOST");
-    info!("args = {:?}", args);
+    info!("args = {args:?}");
     // TODO: save settings under /opt/hypercards/users/<user_id>/...
 
     {
@@ -190,7 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     {
         let host = ARGS.read().unwrap().flag_host.clone();
-        info!("[main] using gRPC host: {:?}", host);
+        info!("[main] using gRPC host: {host:?}");
         let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_owned();
         let endpoint = Endpoint::from_shared(host)
             .unwrap()
@@ -250,7 +250,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let rcvd = rx.recv();
                         debug!("[TXer] FWDing...");
                         match rcvd {
-                            Err(e) => error!("[TXer] failed to FWD: {:?}", e),
+                            Err(e) => error!("[TXer] failed to FWD: {e:?}"),
                             Ok(drawing) => {
                                 send_drawing(&mut client, drawing).await;
                                 NEEDS_SHARING.store(true, Ordering::Relaxed);
@@ -531,7 +531,7 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
                     let img = image::DynamicImage::ImageRgb8(img0);
                     let mut compressed = Vec::with_capacity(50_000);
                     match img.write_to(&mut compressed, image::ImageOutputFormat::Png) {
-                        Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
+                        Err(err) => error!("[loop_screensharing] failed to compress fb: {err:?}"),
                         Ok(()) => {
                             info!("[loop_screensharing] compressed!");
                             let bytes = compressed.len();
@@ -542,10 +542,10 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
                             add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
                             debug!("[loop_screensharing] sending canvas");
                             match client.send_screen(req).await {
-                                Err(err) => error!("[loop_screensharing] !send: {:?}", err),
+                                Err(err) => error!("[loop_screensharing] !send: {err:?}"),
                                 Ok(_) => {
                                     NEEDS_SHARING.store(false, Ordering::Relaxed);
-                                    debug!("[loop_screensharing] sent {} bytes", bytes);
+                                    debug!("[loop_screensharing] sent {bytes} bytes");
                                 }
                             }
                         }
@@ -584,7 +584,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                 Some(event::Event::UsersInTheRoom(c)) => {
                     let old = PEOPLE_COUNT.swap(c, Ordering::Relaxed);
                     repaint_people_counter(app, old, c).await;
-                    info!("[loop_recv] room {:?} has {:?} users", event.in_room_id, c);
+                    info!("[loop_recv] room {:?} has {c:?} users", event.in_room_id);
                 }
                 Some(event::Event::UserJoinedTheRoom(_)) => {
                     info!("[loop_recv] user {:?} joined room", event.by_user_id);
@@ -598,7 +598,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                 }
                 // Streamer MAY send newer revisions of proto messages
                 #[allow(unreachable_patterns)]
-                Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
+                Some(other) => warn!("[loop_recv] unhandled msg {other:?}"),
             },
         };
     }
@@ -667,10 +667,10 @@ async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) 
         event: Some(event),
         room_ids: vec![ARGS.read().unwrap().flag_room.clone()],
     });
-    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
-    info!("REQ = {:?}", req);
-    let rep = client.send_event(req).await.map_err(|e| error!("!Send: {:?}", e));
-    info!("REP = {:?}", rep);
+    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone().parse().unwrap());
+    info!("REQ = {req:?}");
+    let rep = client.send_event(req).await.map_err(|e| error!("!Send: {e:?}"));
+    info!("REP = {rep:?}");
 }
 
 async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: Color) {
@@ -686,7 +686,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
         8 => FONT.get("8"),
         9 => FONT.get("9"),
         _ => {
-            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", count);
+            info!("drawing PEOPLE_COUNT of 9 even though it's at {count:?}");
             FONT.get("9")
         }
     }

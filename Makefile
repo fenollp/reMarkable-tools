@@ -74,7 +74,7 @@ whiteboard: HOST ?= http://fknwkdacd.com:10000
 whiteboard: WEBHOST ?= http://fknwkdacd.com:18888/s
 whiteboard: EXE = whiteboard
 whiteboard: marauder/src/strokes/strokes_generated.rs fmt
-	cross clippy --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=marauder -- -W clippy::pedantic
+	cargo clippy                      --locked --frozen --offline                    --package=marauder -- -W clippy::pedantic
 	cross build --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=marauder --bin $(EXE) --release
 	du -sh ./target/x/$(TARGET)/release/$(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
@@ -90,9 +90,11 @@ whiteboard: marauder/src/strokes/strokes_generated.rs fmt
 scrolls: EXE = scrolls
 scrolls: SES = rM-$(EXE)
 scrolls: fmt
-	cross clippy --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) -- -D warnings --no-deps \
-	  -W clippy::cast_lossless -W clippy::redundant_closure_for_method_calls -W clippy::str_to_string
-	cross build --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) --bin $(EXE) --release
+	cargo clippy                       --locked --frozen --offline                    --package=$(EXE) -- -D warnings --no-deps \
+	  -W clippy::cast_lossless \
+	  -W clippy::redundant_closure_for_method_calls \
+	  -W clippy::str_to_string
+	cross build  --target-dir=target/x --locked --frozen --offline --target=$(TARGET) --package=$(EXE) --bin $(EXE) --release
 	du -sh ./target/x/$(TARGET)/release/$(EXE)
 	ssh $(DEVICE) 'killall -q -9 $(EXE) || true; systemctl stop xochitl || true'
 	rsync -a --stats --progress ./target/x/$(TARGET)/release/$(EXE) $$(find . -maxdepth 1 -type f \( -iname \*.jsonl -o -iname \*.ndjson \) -printf '%T@\t%p\n' | sort -nr | cut -f2-) $(DEVICE):

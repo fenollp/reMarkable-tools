@@ -41,7 +41,7 @@ impl Stroke {
     }
 
     pub fn set_points_and_pressure(&mut self, x: &[(cgmath::Point2<f32>, u16)]) {
-        self.points_and_pressure = x.to_owned();
+        x.clone_into(&mut self.points_and_pressure);
     }
 
     pub fn invert_color(&mut self) {
