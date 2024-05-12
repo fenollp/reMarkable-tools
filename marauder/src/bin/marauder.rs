@@ -519,7 +519,7 @@ fn on_button_press(app: &mut ApplicationContext, input: GPIOEvent) {
                 if let UIElement::Text { ref mut text, scale: _, foreground: _, border_px: _ } =
                     elem.write().inner
                 {
-                    *text = new_state.to_owned();
+                    new_state.clone_into(text);
                 }
             }
             app.draw_element("tooltipRight");

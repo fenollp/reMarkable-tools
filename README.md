@@ -263,3 +263,20 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 * rLCD devices
 	* [HannsNote2 10"](https://www.hannspree.com/hannsnote2)
 	* [Sun Vision Display 32”](https://www.sunvisiondisplay.com/store/)
+
+* color Kobo https://fr.kobobooks.com/products/kobo-libra-colour
+
+* [**tsyncs**: task synchronization simulator](https://github.com/CrazyCraftix/tsyncs)
+	* [Web demo](https://tsyncs.de/) (also, native)
+
+* *Hellish workflows*
+	* [5b0872a5666fec9b7bb6fd623c431de03263372d.jpeg](https://community.carbide3d.com/uploads/default/original/3X/5/b/5b0872a5666fec9b7bb6fd623c431de03263372d.jpeg)
+	* [blueprintsfromhell](https://blueprintsfromhell.tumblr.com/)
+	* [scriptsofanotherdimension](https://scriptsofanotherdimension.tumblr.com/)
+
+* *Handwritten Sequence Trajectories*
+	* [2018, Handwriting Trajectory Recovery using End-to-End Deep Encoder-Decoder Network](https://arxiv.org/abs/1801.07211)
+	* Extending the Handwritten Character Omniglot Challenge https://github.com/CognitiveModeling/DigiLeTs?tab=readme-ov-file#missing-pressure-values-extrapolation-and-sampling
+	* [dataset results for Handwriting Recognition AND Time series](https://paperswithcode.com/datasets?task=handwriting-recognition&mod=time-series)
+	* [2023, Strokes Trajectory Recovery for Unconstrained Handwritten Documents with Automatic Evaluation](https://www.scitepress.org/Papers/2023/117001/117001.pdf)
+	* [2022, Benchmarking Online Sequence-to-Sequence and Character-based Handwriting Recognition from IMU-Enhanced Pens](https://arxiv.org/abs/2202.07036)

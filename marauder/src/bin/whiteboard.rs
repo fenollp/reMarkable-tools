@@ -1,14 +1,15 @@
-use std::sync::mpsc; // TODO? let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 use std::{
     collections::VecDeque,
     process::Command,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
-        Mutex, RwLock,
+        mpsc::{self, Receiver},
+        Mutex, OnceLock, RwLock,
     },
     time::Duration,
 };
 
+use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
@@ -38,8 +39,13 @@ use pb::proto::hypercards::{
     SendScreenReq,
 };
 use qrcode_generator::QrCodeEcc;
-use tokio::{spawn, task::spawn_blocking, time::sleep};
+use tokio::{
+    spawn,
+    task::spawn_blocking,
+    time::{interval, sleep},
+};
 use tonic::{
+    metadata::AsciiMetadataValue,
     transport::{Channel, Endpoint},
     Request,
 };
@@ -49,31 +55,20 @@ use uuid::Uuid;
 #[clap(name = "whiteboard", about = "reMarkable whiteboard HyperCard")]
 struct Args {
     /// Room to join
-    #[arg(long = "room", default_value = "living-room")]
-    flag_room: String,
+    #[arg(long, env = "WHITEBOARD_ROOM", default_value = "living-room")]
+    room: String,
 
     /// Host to connect to
-    #[arg(long = "host", default_value = "http://fknwkdacd.com:10000")]
-    flag_host: String,
+    #[arg(long, env = "WHITEBOARD_HOST", default_value = "http://fknwkdacd.com:10000")]
+    host: String,
 
     /// Web host to send live feed to
-    #[arg(long = "webhost", default_value = "http://fknwkdacd.com:18888/s")]
-    flag_webhost: String,
+    #[arg(long, env = "WHITEBOARD_WEBHOST", default_value = "http://fknwkdacd.com:18888/s")]
+    webhost: String,
 
     /// ID to identify as
     #[arg(skip)]
     user_id: String,
-}
-
-impl ::std::default::Default for Args {
-    fn default() -> Self {
-        Self {
-            flag_host: "unset".to_owned(),
-            flag_room: "unset".to_owned(),
-            flag_webhost: "unset".to_owned(),
-            user_id: "anon".to_owned(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -84,6 +79,9 @@ struct Scribble {
     pos_y: f32,
     pressure: i32,
 }
+
+const REPO: &str = env!("CARGO_PKG_REPOSITORY");
+const VSN: &str = env!("CARGO_PKG_VERSION");
 
 const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
@@ -107,22 +105,15 @@ static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new(
 static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
 static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap()); // TODO: const fn
 static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
-static ARGS: Lazy<RwLock<Args>> = Lazy::new(|| RwLock::new(Default::default()));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
-static CHER: Lazy<RwLock<Option<Channel>>> = Lazy::new(|| RwLock::new(None));
+
+static ARGS: OnceLock<Args> = OnceLock::new();
 
 static PEN_BLACK: Lazy<AtomicBool> =
     Lazy::new(|| AtomicBool::new(matches!(black(true), color::BLACK)));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
-
-fn maybe_from_env(val: &mut String, var: &str) {
-    if let Ok(newval) = std::env::var(var) {
-        info!("using {:?} from env: {:?}", var, newval);
-        *val = newval;
-    }
-}
 
 fn black(x: bool) -> color {
     if x {
@@ -140,21 +131,14 @@ fn color2bool() {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     env_logger::init();
 
     let mut args = Args::parse();
     args.user_id = Uuid::new_v4().hyphenated().to_string();
-    maybe_from_env(&mut args.flag_room, "WHITEBOARD_ROOM");
-    maybe_from_env(&mut args.flag_host, "WHITEBOARD_HOST");
-    maybe_from_env(&mut args.flag_webhost, "WHITEBOARD_WEBHOST");
-    info!("args = {:?}", args);
+    info!("args = {args:?}");
     // TODO: save settings under /opt/hypercards/users/<user_id>/...
-
-    {
-        let mut wargs = ARGS.write().unwrap();
-        *wargs = args;
-    }
+    let args = ARGS.get_or_init(|| args);
 
     // TODO: check for updates when asked:
     // reqwest JSON API equivalent of https://github.com/fenollp/reMarkable-tools/releases
@@ -188,76 +172,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
-    {
-        let host = ARGS.read().unwrap().flag_host.clone();
-        info!("[main] using gRPC host: {:?}", host);
-        let uaprexix = "https://github.com/fenollp/reMarkable-tools/releases/tag/v".to_owned();
-        let endpoint = Endpoint::from_shared(host)
+    let ch = {
+        let host = args.host.clone();
+        info!("[main] using gRPC host: {host:?}");
+        Endpoint::from_shared(host)
             .unwrap()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(4))
-            .user_agent(uaprexix + env!("CARGO_PKG_VERSION"))
-            .unwrap();
-        let mut wcher = CHER.write().unwrap();
-        *wcher = Some(endpoint.connect_lazy());
-    }
+            .user_agent(format!("{REPO}/releases/tag/v{VSN}"))
+            .unwrap()
+            .connect_lazy()
+    };
 
+    let ch2 = ch.clone();
     let appref2 = app.upgrade_ref();
     info!("[main] spawn-ing loop_recv");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_recv] spawn-ed");
             loop {
-                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
-                    loop_recv(appref2, ch).await;
-                    break;
+                if let Err(e) = loop_recv(appref2, ch2.clone()).await {
+                    error!("[loop_recv] respawning due to: {e}");
                 }
             }
-            info!("[loop_recv] terminated");
         })
     });
 
+    let ch3 = ch.clone();
     let appref3 = app.upgrade_ref();
     info!("[main] spawn-ing loop_screensharing");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
             info!("[loop_screensharing] spawn-ed");
             loop {
-                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
-                    loop_screensharing(appref3, ch).await;
-                    break;
+                if let Err(e) = loop_screensharing(appref3, ch3.clone()).await {
+                    error!("[loop_screensharing] respawning due to: {e}");
                 }
             }
-            info!("[loop_screensharing] terminated");
         })
     });
 
-    info!("[main] spawn-ing TXer");
+    let ch4 = ch.clone();
+    let (tx, rx) = mpsc::channel();
+    *TX.lock().unwrap() = Some(tx.to_owned());
+    info!("[main] spawn-ing loop_fwd");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
-            info!("[TXer] spawn-ed");
-            let (tx, rx) = mpsc::channel();
-            {
-                info!("[TXer] locking");
-                let mut wtx = TX.lock().unwrap();
-                *wtx = Some(tx.to_owned());
-                info!("[TXer] unlocked");
-            }
-            loop {
-                if let Some(ch) = CHER.read().map(|ch| ch.clone()).unwrap() {
-                    let mut client = WhiteboardClient::new(ch);
-                    loop {
-                        let rcvd = rx.recv();
-                        debug!("[TXer] FWDing...");
-                        match rcvd {
-                            Err(e) => error!("[TXer] failed to FWD: {:?}", e),
-                            Ok(drawing) => {
-                                send_drawing(&mut client, drawing).await;
-                                NEEDS_SHARING.store(true, Ordering::Relaxed);
-                            }
-                        }
-                    }
-                }
+            info!("[loop_fwd] spawn-ed");
+            if let Err(e) = loop_fwd(rx, ch4.clone()).await {
+                error!("[loop_fwd] terminating due to: {e}");
+                // TODO: find a way to survive: re-set tx?
             }
         })
     });
@@ -265,8 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("[main] spawn-ing qrcoder");
     spawn(async move {
         info!("[qrcoder] spawn-ed");
-        let webhost = ARGS.read().unwrap().flag_webhost.clone();
-        let url = webhost + "/" + &ARGS.read().unwrap().flag_room + "/";
+        let url = format!("{}/{}/", args.webhost, args.room);
         debug!("[qrcoder] generating");
         let qrcode: Vec<u8> = qrcode_generator::to_png_to_vec(url, QrCodeEcc::Low, 64).unwrap();
         debug!("[qrcoder] loading");
@@ -483,100 +446,131 @@ fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
     };
 }
 
-fn add_xuser<T>(req: &mut Request<T>, user_id: String) {
+fn add_xuser<T>(req: &mut Request<T>, user_id: &str) -> Result<()> {
     let md = Request::metadata_mut(req);
     let key = "x-user";
     assert!(md.get(key).is_none());
-    md.insert(key, user_id.parse().unwrap());
+    let user_id: AsciiMetadataValue = user_id.parse()?;
+    md.insert(key, user_id);
+    Ok(())
 }
 
-async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) {
-    info!("[loop_screensharing] creating client");
+async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
     let mut client = ScreenSharingClient::new(ch);
-    info!("[loop_screensharing] created client");
 
+    let mut counter = 0;
     let mut previous_checksum: u64 = 0;
-    let (mut failsafe, wrapat) = (0, 10);
+    let mut ticker = interval(Duration::from_millis(1_500));
     loop {
-        sleep(Duration::from_millis(500)).await;
+        ticker.tick().await;
 
-        failsafe += 1;
-        let wrapped = failsafe == wrapat;
-        if wrapped {
-            failsafe = 0;
+        let wakeup = counter == 10;
+        if wakeup {
+            counter = 0;
         }
-        if !(wrapped || NEEDS_SHARING.load(Ordering::Relaxed)) {
+        counter += 1;
+        if !(wakeup || NEEDS_SHARING.load(Ordering::Relaxed)) {
             continue;
         }
 
         debug!("[loop_screensharing] dumping canvas");
         let framebuffer = app.get_framebuffer_ref();
         let roi = CANVAS_REGION;
-        match framebuffer.dump_region(roi) {
-            // https://github.com/canselcik/libremarkable/pull/96
-            Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {0}", err),
-            Ok(buff) => {
-                let mut crc32 = CRC::crc32();
-                crc32.digest(&buff);
-                let new_checksum = crc32.get_crc();
-                if new_checksum == previous_checksum {
-                    NEEDS_SHARING.store(false, Ordering::Relaxed);
-                    continue;
-                }
-                previous_checksum = new_checksum;
-                debug!("[loop_screensharing] compressing canvas");
-                if let Some(img0) =
-                    storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
-                {
-                    let img = image::DynamicImage::ImageRgb8(img0);
-                    let mut compressed = Vec::with_capacity(50_000);
-                    match img.write_to(&mut compressed, image::ImageOutputFormat::Png) {
-                        Err(err) => error!("[loop_screensharing] failed to compress fb: {:?}", err),
-                        Ok(()) => {
-                            info!("[loop_screensharing] compressed!");
-                            let bytes = compressed.len();
-                            let mut req = Request::new(SendScreenReq {
-                                room_id: ARGS.read().unwrap().flag_room.clone(),
-                                screen_png: compressed,
-                            });
-                            add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
-                            debug!("[loop_screensharing] sending canvas");
-                            match client.send_screen(req).await {
-                                Err(err) => error!("[loop_screensharing] !send: {:?}", err),
-                                Ok(_) => {
-                                    NEEDS_SHARING.store(false, Ordering::Relaxed);
-                                    debug!("[loop_screensharing] sent {} bytes", bytes);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // https://github.com/canselcik/libremarkable/pull/96
+        let buff = framebuffer
+            .dump_region(roi)
+            .map_err(|e| anyhow!("[loop_screensharing] failed to dump framebuffer: {e}"))?;
+
+        let mut crc32 = CRC::crc32();
+        crc32.digest(&buff);
+        let new_checksum = crc32.get_crc();
+        if new_checksum == previous_checksum {
+            NEEDS_SHARING.store(false, Ordering::Relaxed);
+            continue;
+        }
+        previous_checksum = new_checksum;
+
+        debug!("[loop_screensharing] compressing canvas");
+        let Some(img) = storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
+        else {
+            bail!("[loop_screensharing] Error compressing with rgbimage_from_u8_slice")
         };
+        let img = image::DynamicImage::ImageRgb8(img);
+
+        let mut compressed = Vec::with_capacity(50_000);
+        img.write_to(&mut compressed, image::ImageOutputFormat::Png)
+            .map_err(|e| anyhow!("[loop_screensharing] failed to compress fb: {e:?}"))?;
+        info!("[loop_screensharing] compressed!");
+
+        let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
+        let bytes = compressed.len();
+        let mut req = Request::new(SendScreenReq { room_id: room.clone(), screen_png: compressed });
+        add_xuser(&mut req, user_id)?;
+
+        debug!("[loop_screensharing] sending canvas");
+        client.send_screen(req).await.map_err(|e| anyhow!("[loop_screensharing] !send: {e:?}"))?;
+        NEEDS_SHARING.store(false, Ordering::Relaxed);
+        debug!("[loop_screensharing] sent {bytes} bytes");
     }
 }
 
-async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
-    let mut req = Request::new(RecvEventsReq { room_id: ARGS.read().unwrap().flag_room.clone() });
-    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
-
-    info!("[loop_recv] creating stream");
+async fn loop_fwd(rx: Receiver<Drawing>, ch: Channel) -> Result<()> {
     let mut client = WhiteboardClient::new(ch);
-    let mut stream = client.recv_events(req).await.unwrap().into_inner();
+    let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
+    loop {
+        let rcvd = rx.recv();
+        debug!("[loop_fwd] FWDing...");
+        match rcvd {
+            Err(e) => error!("[loop_fwd] failed to FWD: {e:?}"),
+            Ok(drawing) => {
+                send_drawing(&mut client, room, user_id, drawing).await?;
+                NEEDS_SHARING.store(true, Ordering::Relaxed);
+            }
+        }
+    }
+}
+
+async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
+    let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
+    let req = RecvEventsReq { room_id: room.clone() };
+
+    let ms = 100;
+    info!("[loop_recv] creating stream");
+    let mut client = WhiteboardClient::new(ch.clone());
+    let mut stream = {
+        let mut delays = (0..).map(|n| 2u64.pow(n)).take_while(|n| *n < ms);
+
+        loop {
+            let mut req = Request::new(req.clone());
+            add_xuser(&mut req, user_id)?;
+
+            match client.recv_events(req).await {
+                Ok(r) => {
+                    info!("[loop_recv] connection established!");
+                    break r.into_inner();
+                }
+                Err(e) => {
+                    let pause = Duration::from_millis(delays.next().unwrap_or(ms));
+                    warn!("[loop_recv] couldn't connect, next attempt in {pause:?}: {e}");
+                    sleep(pause).await
+                }
+            }
+        }
+    };
     info!("[loop_recv] receiving...");
 
     loop {
-        let msg = stream.message().await.unwrap();
-        match msg {
-            None => error!("[loop_recv] empty message in gRPC stream"),
-            Some(event) => match event.event {
+        match stream.message().await {
+            Err(e) => error!("[loop_recv] sender status: {e}"),
+            Ok(None) => bail!("[loop_recv] connection dropped!"),
+            Ok(Some(event)) => match event.event {
                 None => error!("[loop_recv] empty event in message"),
                 Some(event::Event::Drawing(drawing)) => {
                     let len = drawing.xs.len();
                     if len < 3 {
                         continue;
                     }
-                    debug!("[loop_recv] drawing {:?} points", len - 2);
+                    debug!("[loop_recv] drawing {len:?} points");
                     paint(app, drawing).await;
                     info!("[loop_recv] painted");
                     NEEDS_SHARING.store(true, Ordering::Relaxed);
@@ -584,7 +578,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                 Some(event::Event::UsersInTheRoom(c)) => {
                     let old = PEOPLE_COUNT.swap(c, Ordering::Relaxed);
                     repaint_people_counter(app, old, c).await;
-                    info!("[loop_recv] room {:?} has {:?} users", event.in_room_id, c);
+                    info!("[loop_recv] room {:?} has {c:?} users", event.in_room_id);
                 }
                 Some(event::Event::UserJoinedTheRoom(_)) => {
                     info!("[loop_recv] user {:?} joined room", event.by_user_id);
@@ -598,7 +592,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) {
                 }
                 // Streamer MAY send newer revisions of proto messages
                 #[allow(unreachable_patterns)]
-                Some(other) => warn!("[loop_recv] unhandled msg {:?}", other),
+                Some(other) => warn!("[loop_recv] unhandled msg {other:?}"),
             },
         };
     }
@@ -656,21 +650,26 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) {
+async fn send_drawing(
+    client: &mut WhiteboardClient<Channel>,
+    room: &str,
+    user_id: &str,
+    drawing: Drawing,
+) -> Result<()> {
     let event = Event {
         created_at: 0,
         by_user_id: "".into(),
         in_room_id: "".into(),
         event: Some(event::Event::Drawing(drawing)),
     };
-    let mut req = Request::new(SendEventReq {
-        event: Some(event),
-        room_ids: vec![ARGS.read().unwrap().flag_room.clone()],
-    });
-    add_xuser(&mut req, ARGS.read().unwrap().user_id.clone());
-    info!("REQ = {:?}", req);
-    let rep = client.send_event(req).await.map_err(|e| error!("!Send: {:?}", e));
-    info!("REP = {:?}", rep);
+    let mut req =
+        Request::new(SendEventReq { event: Some(event), room_ids: vec![room.to_owned()] });
+    add_xuser(&mut req, user_id)?;
+    info!("REQ = {req:?}");
+    if let Err(e) = client.send_event(req).await {
+        bail!("[send_drawing] failure: {e}")
+    }
+    Ok(())
 }
 
 async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, color: Color) {
@@ -686,7 +685,7 @@ async fn paint_people_counter(app: &mut ApplicationContext<'_>, count: u32, colo
         8 => FONT.get("8"),
         9 => FONT.get("9"),
         _ => {
-            info!("drawing PEOPLE_COUNT of 9 even though it's at {:?}", count);
+            info!("drawing PEOPLE_COUNT of 9 even though it's at {count:?}");
             FONT.get("9")
         }
     }

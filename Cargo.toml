@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.8"
+version = "0.4.0"
 edition = "2021"
 repository = "https://github.com/fenollp/reMarkable-tools"
 authors = [
@@ -19,7 +19,7 @@ anyhow = "1"
 async-stream = "0.3"
 atomic = "0.5"
 chrono = "0.4"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }
 env_logger = "0.10"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
