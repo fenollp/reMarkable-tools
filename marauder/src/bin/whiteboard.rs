@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
@@ -39,7 +39,11 @@ use pb::proto::hypercards::{
     SendScreenReq,
 };
 use qrcode_generator::QrCodeEcc;
-use tokio::{spawn, task::spawn_blocking, time::sleep};
+use tokio::{
+    spawn,
+    task::spawn_blocking,
+    time::{interval, sleep},
+};
 use tonic::{
     metadata::AsciiMetadataValue,
     transport::{Channel, Endpoint},
@@ -211,10 +215,10 @@ async fn main() -> Result<()> {
     let ch4 = ch.clone();
     let (tx, rx) = mpsc::channel();
     *TX.lock().unwrap() = Some(tx.to_owned());
-    info!("[main] spawn-ing TXer");
+    info!("[main] spawn-ing loop_fwd");
     spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async move {
-            info!("[TXer] spawn-ed");
+            info!("[loop_fwd] spawn-ed");
             if let Err(e) = loop_fwd(rx, ch4.clone()).await {
                 error!("[loop_fwd] terminating due to: {e}");
                 // TODO: find a way to survive: re-set tx?
@@ -442,7 +446,7 @@ fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
     };
 }
 
-fn add_xuser<T>(req: &mut Request<T>, user_id: String) -> Result<()> {
+fn add_xuser<T>(req: &mut Request<T>, user_id: &str) -> Result<()> {
     let md = Request::metadata_mut(req);
     let key = "x-user";
     assert!(md.get(key).is_none());
@@ -452,14 +456,13 @@ fn add_xuser<T>(req: &mut Request<T>, user_id: String) -> Result<()> {
 }
 
 async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> {
-    info!("[loop_screensharing] creating client");
     let mut client = ScreenSharingClient::new(ch);
-    info!("[loop_screensharing] created client");
 
     let mut previous_checksum: u64 = 0;
     let (mut failsafe, wrapat) = (0, 10);
+    let mut ticker = interval(Duration::from_millis(500));
     loop {
-        sleep(Duration::from_millis(500)).await;
+        ticker.tick().await;
 
         failsafe += 1;
         let wrapped = failsafe == wrapat;
@@ -473,60 +476,54 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Re
         debug!("[loop_screensharing] dumping canvas");
         let framebuffer = app.get_framebuffer_ref();
         let roi = CANVAS_REGION;
-        match framebuffer.dump_region(roi) {
-            // https://github.com/canselcik/libremarkable/pull/96
-            Err(err) => error!("[loop_screensharing] failed to dump framebuffer: {err}"),
-            Ok(buff) => {
-                let mut crc32 = CRC::crc32();
-                crc32.digest(&buff);
-                let new_checksum = crc32.get_crc();
-                if new_checksum == previous_checksum {
-                    NEEDS_SHARING.store(false, Ordering::Relaxed);
-                    continue;
-                }
-                previous_checksum = new_checksum;
-                debug!("[loop_screensharing] compressing canvas");
-                if let Some(img0) =
-                    storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
-                {
-                    let img = image::DynamicImage::ImageRgb8(img0);
-                    let mut compressed = Vec::with_capacity(50_000);
-                    match img.write_to(&mut compressed, image::ImageOutputFormat::Png) {
-                        Err(err) => error!("[loop_screensharing] failed to compress fb: {err:?}"),
-                        Ok(()) => {
-                            info!("[loop_screensharing] compressed!");
-                            let args = ARGS.get().expect("set on startup");
-                            let bytes = compressed.len();
-                            let mut req = Request::new(SendScreenReq {
-                                room_id: args.room.clone(),
-                                screen_png: compressed,
-                            });
-                            add_xuser(&mut req, args.user_id.clone())?;
-                            debug!("[loop_screensharing] sending canvas");
-                            match client.send_screen(req).await {
-                                Err(err) => error!("[loop_screensharing] !send: {err:?}"),
-                                Ok(_) => {
-                                    NEEDS_SHARING.store(false, Ordering::Relaxed);
-                                    debug!("[loop_screensharing] sent {bytes} bytes");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // https://github.com/canselcik/libremarkable/pull/96
+        let buff = framebuffer
+            .dump_region(roi)
+            .map_err(|e| anyhow!("[loop_screensharing] failed to dump framebuffer: {e}"))?;
+
+        let mut crc32 = CRC::crc32();
+        crc32.digest(&buff);
+        let new_checksum = crc32.get_crc();
+        if new_checksum == previous_checksum {
+            NEEDS_SHARING.store(false, Ordering::Relaxed);
+            continue;
+        }
+        previous_checksum = new_checksum;
+
+        debug!("[loop_screensharing] compressing canvas");
+        let Some(img) = storage::rgbimage_from_u8_slice(roi.width, roi.height, buff.as_slice())
+        else {
+            bail!("[loop_screensharing] Error compressing with rgbimage_from_u8_slice")
         };
+        let img = image::DynamicImage::ImageRgb8(img);
+
+        let mut compressed = Vec::with_capacity(50_000);
+        img.write_to(&mut compressed, image::ImageOutputFormat::Png)
+            .map_err(|e| anyhow!("[loop_screensharing] failed to compress fb: {e:?}"))?;
+        info!("[loop_screensharing] compressed!");
+
+        let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
+        let bytes = compressed.len();
+        let mut req = Request::new(SendScreenReq { room_id: room.clone(), screen_png: compressed });
+        add_xuser(&mut req, user_id)?;
+
+        debug!("[loop_screensharing] sending canvas");
+        client.send_screen(req).await.map_err(|e| anyhow!("[loop_screensharing] !send: {e:?}"))?;
+        NEEDS_SHARING.store(false, Ordering::Relaxed);
+        debug!("[loop_screensharing] sent {bytes} bytes");
     }
 }
 
 async fn loop_fwd(rx: Receiver<Drawing>, ch: Channel) -> Result<()> {
     let mut client = WhiteboardClient::new(ch);
+    let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
     loop {
         let rcvd = rx.recv();
         debug!("[loop_fwd] FWDing...");
         match rcvd {
             Err(e) => error!("[loop_fwd] failed to FWD: {e:?}"),
             Ok(drawing) => {
-                send_drawing(&mut client, drawing).await?;
+                send_drawing(&mut client, room, user_id, drawing).await?;
                 NEEDS_SHARING.store(true, Ordering::Relaxed);
             }
         }
@@ -546,7 +543,7 @@ async fn loop_recv(app: &mut ApplicationContext<'_>, ch: Channel) -> Result<()> 
 
         loop {
             let mut req = Request::new(req.clone());
-            add_xuser(&mut req, user_id.clone())?;
+            add_xuser(&mut req, &user_id)?;
 
             match client.recv_events(req).await {
                 Ok(r) => {
@@ -654,20 +651,24 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
     }
 }
 
-async fn send_drawing(client: &mut WhiteboardClient<Channel>, drawing: Drawing) -> Result<()> {
+async fn send_drawing(
+    client: &mut WhiteboardClient<Channel>,
+    room: &str,
+    user_id: &str,
+    drawing: Drawing,
+) -> Result<()> {
     let event = Event {
         created_at: 0,
         by_user_id: "".into(),
         in_room_id: "".into(),
         event: Some(event::Event::Drawing(drawing)),
     };
-    let args = ARGS.get().unwrap();
     let mut req =
-        Request::new(SendEventReq { event: Some(event), room_ids: vec![args.room.clone()] });
-    add_xuser(&mut req, args.user_id.clone())?;
+        Request::new(SendEventReq { event: Some(event), room_ids: vec![room.to_owned()] });
+    add_xuser(&mut req, user_id)?;
     info!("REQ = {req:?}");
     if let Err(e) = client.send_event(req).await {
-        error!("[send_drawing] failure: {e}");
+        bail!("[send_drawing] failure: {e}")
     }
     Ok(())
 }
