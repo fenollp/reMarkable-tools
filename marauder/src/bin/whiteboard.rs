@@ -108,6 +108,7 @@ static ARGS: OnceLock<Args> = OnceLock::new();
 static PEN_BLACK: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 
 static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
+static BTN_TIMES3: Lazy<Button> = Lazy::new(|| Button::new(2, "times3"));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -263,6 +264,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             let from_btn = BTN_ERASE.is_pressed();
             let col = black(from_pen && !from_btn);
             let mult = if col == color::WHITE { 50 } else { 2 };
+            let mult = mult * if BTN_TIMES3.is_pressed() { 3 } else { 1 };
 
             {
                 let mut scribbles = SCRIBBLES.lock().unwrap();
@@ -382,6 +384,7 @@ fn maybe_send_drawing() {
 
 fn on_tch(_: &mut ApplicationContext, input: MultitouchEvent) {
     BTN_ERASE.process_event(input);
+    BTN_TIMES3.process_event(input);
 }
 
 fn on_btn(_: &mut ApplicationContext, input: GPIOEvent) {
