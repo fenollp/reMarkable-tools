@@ -47,6 +47,7 @@ uuid = { version = "1", features = ["v4"] }
 # version = "0.6"
 git = "https://github.com/canselcik/libremarkable"
 branch = "master"
+default-features = false
 features = [
     "appctx",
     "battery",
