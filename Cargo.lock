@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "drawings"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "pb",
 ]
@@ -1336,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "marauder"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1577,7 +1577,7 @@ dependencies = [
 
 [[package]]
 name = "pb"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -2108,7 +2108,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scrolls"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "drawings",
@@ -2263,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "srv"
-version = "0.4.0"
+version = "0.5.0"
 
 [[package]]
 name = "stable_deref_trait"
