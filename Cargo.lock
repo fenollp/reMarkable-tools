@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "drawings"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "pb",
 ]
@@ -951,16 +951,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
-name = "hlua"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9115b624bd8f61581a8f2618ba072bd5a91f4abe5bf521e7ba33106864c8a03d"
-dependencies = [
- "libc",
- "lua52-sys",
-]
-
-[[package]]
 name = "html-escape"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1291,7 +1281,6 @@ dependencies = [
  "epoll",
  "evdev",
  "fxhash",
- "hlua",
  "image 0.23.14",
  "ioctl-gen",
  "libc",
@@ -1335,17 +1324,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "lua52-sys"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d451db153c94e455dc817d388f9674f6232425c28db3509e90251c55b8df2f94"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
-
-[[package]]
 name = "lyon_geom"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1358,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "marauder"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1599,7 +1577,7 @@ dependencies = [
 
 [[package]]
 name = "pb"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -1660,12 +1638,6 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
-name = "pkg-config"
-version = "0.3.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
 name = "png"
@@ -2136,7 +2108,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scrolls"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "drawings",
@@ -2291,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "srv"
-version = "0.4.0"
+version = "0.5.0"
 
 [[package]]
 name = "stable_deref_trait"

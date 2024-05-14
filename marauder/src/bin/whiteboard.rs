@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    process::Command,
+    process::{self, Command},
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc::{self, Receiver},
@@ -14,12 +14,9 @@ use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
 use libremarkable::{
-    appctx,
     appctx::ApplicationContext,
-    cgmath::Point2,
+    cgmath::{vec2, EuclideanSpace, Point2},
     framebuffer::{
-        cgmath,
-        cgmath::EuclideanSpace,
         common::{
             color, display_temp, dither_mode, mxcfb_rect, waveform_mode, DISPLAYHEIGHT,
             DISPLAYWIDTH, DRAWING_QUANT_BIT,
@@ -27,11 +24,11 @@ use libremarkable::{
         storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
     image,
-    input::{Finger, GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
+    input::{GPIOEvent, InputEvent, MultitouchEvent, WacomEvent, WacomPen},
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
-use marauder::fonts;
+use marauder::{buttons::Button, fonts};
 use once_cell::sync::Lazy;
 use pb::proto::hypercards::{
     drawing::Color, event, screen_sharing_client::ScreenSharingClient,
@@ -95,22 +92,23 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 };
 
 type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
-type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
+type PosNpress = (Point2<f32>, i32); // position and pressure
 
 static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
-static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
-static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap()); // TODO: const fn
+static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
 static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
 
 static ARGS: OnceLock<Args> = OnceLock::new();
 
-static PEN_BLACK: Lazy<AtomicBool> =
-    Lazy::new(|| AtomicBool::new(matches!(black(true), color::BLACK)));
+static PEN_BLACK: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
+
+static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
+static BTN_TIMES3: Lazy<Button> = Lazy::new(|| Button::new(2, "times3"));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -146,16 +144,16 @@ async fn main() -> Result<()> {
     // DL + decompress + checksum + chmod + move + execve
     // unless version is current
 
-    let mut app: appctx::ApplicationContext<'_> = appctx::ApplicationContext::default();
+    let mut app: ApplicationContext<'_> = ApplicationContext::default();
     app.clear(true);
 
     app.add_element(
         "canvasRegion",
         UIElementWrapper {
-            position: CANVAS_REGION.top_left().cast().unwrap() + cgmath::vec2(0, -2),
+            position: CANVAS_REGION.top_left().cast().unwrap() + vec2(0, -2),
             refresh: UIConstraintRefresh::RefreshAndWait,
             inner: UIElement::Region {
-                size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
+                size: CANVAS_REGION.size().cast().unwrap() + vec2(1, 3),
                 border_px: 0,
                 border_color: color::BLACK,
             },
@@ -257,22 +255,16 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
-                // This is so that we can click the buttons outside the canvas region
-                // normally meant to be touched with a finger using our stylus
                 wacom_stack.clear();
                 maybe_send_drawing();
-                if UNPRESS_OBSERVED.fetch_and(false, Ordering::Relaxed) {
-                    let region = app
-                        .find_active_region(position.y.round() as u16, position.x.round() as u16);
-                    if let Some(element) = region.map(|(region, _)| region.element.clone()) {
-                        (region.unwrap().0.handler)(app, element);
-                    }
-                }
                 return;
             }
 
-            let col = black(PEN_BLACK.load(Ordering::Relaxed));
-            let mult = if col == color::WHITE { 64 } else { 2 };
+            let from_pen = PEN_BLACK.load(Ordering::Relaxed);
+            let from_btn = BTN_ERASE.is_pressed();
+            let col = black(from_pen && !from_btn);
+            let mult = if col == color::WHITE { 50 } else { 2 };
+            let mult = mult * if BTN_TIMES3.is_pressed() { 3 } else { 1 };
 
             {
                 let mut scribbles = SCRIBBLES.lock().unwrap();
@@ -350,8 +342,6 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                 wacom_stack.clear();
                 maybe_send_drawing();
-
-                UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
         }
         WacomEvent::Unknown => info!("got WacomEvent::Unknown"),
@@ -392,58 +382,19 @@ fn maybe_send_drawing() {
     scribbles.clear();
 }
 
-fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
-    match input {
-        MultitouchEvent::Release { finger: Finger { pos: Point2 { x, y }, .. }, .. } => {
-            info!("[on_tch] finger on zone x:{x} y:{y}")
-        }
-        _ => debug!("[on_tch] {input:?}"),
-    }
+fn on_tch(_: &mut ApplicationContext, input: MultitouchEvent) {
+    BTN_ERASE.process_event(input);
+    BTN_TIMES3.process_event(input);
 }
 
-fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
-    let (btn, pressed) = match input {
-        GPIOEvent::Press { button } => (button, true),
-        GPIOEvent::Unpress { button } => (button, false),
-        GPIOEvent::Unknown => return,
-    };
+fn on_btn(_: &mut ApplicationContext, input: GPIOEvent) {
+    info!("[on_btn] input = {input:?}");
 
-    // Ignoring the unpressed event
-    if !pressed {
-        return;
+    if let GPIOEvent::Press { .. } = input {
+        warn!("[on_btn] about to shut down & switch back to xochitl");
+        Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
+        process::exit(0);
     }
-
-    // Simple but effective accidental button press filtering
-    if WACOM_IN_RANGE.load(Ordering::Relaxed) {
-        return;
-    }
-
-    match btn {
-        PhysicalButton::RIGHT => {
-            info!(">>> pressed right button");
-        }
-        PhysicalButton::LEFT => {
-            info!(">>> pressed left button");
-        }
-        PhysicalButton::MIDDLE => {
-            app.clear(true);
-            app.draw_elements();
-
-            let appref = app.upgrade_ref();
-            spawn_blocking(move || {
-                tokio::runtime::Handle::current().block_on(async move {
-                    paint_mouldings(appref).await;
-                })
-            });
-        }
-        PhysicalButton::POWER => {
-            Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
-            std::process::exit(0);
-        }
-        PhysicalButton::WAKEUP => {
-            info!("WAKEUP button(?) pressed(?)");
-        }
-    };
 }
 
 fn add_xuser<T>(req: &mut Request<T>, user_id: &str) -> Result<()> {
@@ -460,11 +411,11 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Re
 
     let mut counter = 0;
     let mut previous_checksum: u64 = 0;
-    let mut ticker = interval(Duration::from_millis(1_500));
+    let mut ticker = interval(Duration::from_millis(100));
     loop {
         ticker.tick().await;
 
-        let wakeup = counter == 10;
+        let wakeup = counter % 100 == 0; // Every 10s
         if wakeup {
             counter = 0;
         }
@@ -609,13 +560,13 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
         if i != 0 {
             sleep(DRAWING_PACE).await;
         }
-        let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
+        let points: Vec<(Point2<f32>, i32, u32)> = vec![
             // start
-            (cgmath::Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
+            (Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
             // ctrl
-            (cgmath::Point2 { x: xs[i + 1], y: ys[i + 1] }, ps[i + 1], ws[i + 1]),
+            (Point2 { x: xs[i + 1], y: ys[i + 1] }, ps[i + 1], ws[i + 1]),
             // end
-            (cgmath::Point2 { x: xs[i + 2], y: ys[i + 2] }, ps[i + 2], ws[i + 2]),
+            (Point2 { x: xs[i + 2], y: ys[i + 2] }, ps[i + 2], ws[i + 2]),
         ];
         let radii: Vec<f32> = points
             .iter()
@@ -728,31 +679,29 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let appref6 = app.upgrade_ref();
     spawn(async move {
         loop {
-            match QRCODE.read().unwrap().as_ref() {
-                None => (),
-                Some(qrcode) => {
-                    debug!("[qrcode] painting");
-                    let fb = appref6.get_framebuffer_ref();
-                    let region = mxcfb_rect {
-                        top: 4,
-                        left: TOOLBAR_REGION.width - (4 + qrcode.width()),
-                        height: qrcode.height(),
-                        width: qrcode.width(),
-                    };
-                    fb.draw_image(qrcode, region.top_left().cast().unwrap());
-                    fb.partial_refresh(
-                        &region,
-                        PartialRefreshMode::Async,
-                        waveform_mode::WAVEFORM_MODE_GC16,
-                        display_temp::TEMP_USE_PAPYRUS,
-                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-                        0,
-                        false,
-                    );
-                    debug!("[qrcode] done");
-                    break;
-                }
-            };
+            sleep(Duration::from_millis(50)).await;
+            if let Some(qrcode) = QRCODE.read().unwrap().as_ref() {
+                debug!("[qrcode] painting");
+                let fb = appref6.get_framebuffer_ref();
+                let region = mxcfb_rect {
+                    top: 4,
+                    left: TOOLBAR_REGION.width - (4 + qrcode.width()),
+                    height: qrcode.height(),
+                    width: qrcode.width(),
+                };
+                fb.draw_image(qrcode, region.top_left().cast().unwrap());
+                fb.partial_refresh(
+                    &region,
+                    PartialRefreshMode::Async,
+                    waveform_mode::WAVEFORM_MODE_GC16,
+                    display_temp::TEMP_USE_PAPYRUS,
+                    dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                    0,
+                    false,
+                );
+                info!("[qrcode] done");
+                break;
+            }
         }
     });
 
@@ -760,10 +709,10 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     spawn(async move {
         paint(appref1, top_bar(c)).await;
     });
-    let appref2 = app.upgrade_ref();
-    spawn(async move {
-        paint_vec(appref2, drawings::top_left_help::f(c)).await;
-    });
+    // let appref2 = app.upgrade_ref();
+    // spawn(async move {
+    //     paint_vec(appref2, drawings::top_left_help::f(c)).await;
+    // });
     let appref3 = app.upgrade_ref();
     spawn(async move {
         paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;

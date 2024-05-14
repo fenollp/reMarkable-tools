@@ -55,10 +55,10 @@ marauder/ujipenchars2.txt: url ?= https://archive.ics.uci.edu/ml/machine-learnin
 marauder/ujipenchars2.txt:
 	curl -fSLo $@ $(url)
 test-ujipenchars2: marauder/ujipenchars2.txt
-	cargo run --target=$$($(LOCAL_TARGET)) --bin ujipenchars $^
+	cargo run --target=$$($(LOCAL_TARGET)) --locked --frozen --offline --bin ujipenchars $^
 
 test: fmt test-ujipenchars2
-	cargo test --target=$$($(LOCAL_TARGET))
+	cargo test --target=$$($(LOCAL_TARGET)) --locked --frozen --offline
 
 # whiteboard
 
