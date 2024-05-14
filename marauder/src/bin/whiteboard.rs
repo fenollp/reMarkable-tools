@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     process::Command,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
         mpsc::{self, Receiver},
         Mutex, OnceLock, RwLock,
     },
@@ -14,12 +14,9 @@ use clap::Parser;
 use crc_any::CRC;
 use itertools::Itertools;
 use libremarkable::{
-    appctx,
     appctx::ApplicationContext,
-    cgmath::Point2,
+    cgmath::{vec2, EuclideanSpace, Point2},
     framebuffer::{
-        cgmath,
-        cgmath::EuclideanSpace,
         common::{
             color, display_temp, dither_mode, mxcfb_rect, waveform_mode, DISPLAYHEIGHT,
             DISPLAYWIDTH, DRAWING_QUANT_BIT,
@@ -95,7 +92,7 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 };
 
 type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
-type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
+type PosNpress = (Point2<f32>, i32); // position and pressure
 
 static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
 static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -103,14 +100,13 @@ static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
-static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap()); // TODO: const fn
+static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
 static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
 
 static ARGS: OnceLock<Args> = OnceLock::new();
 
-static PEN_BLACK: Lazy<AtomicBool> =
-    Lazy::new(|| AtomicBool::new(matches!(black(true), color::BLACK)));
+static PEN_BLACK: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -146,16 +142,16 @@ async fn main() -> Result<()> {
     // DL + decompress + checksum + chmod + move + execve
     // unless version is current
 
-    let mut app: appctx::ApplicationContext<'_> = appctx::ApplicationContext::default();
+    let mut app: ApplicationContext<'_> = ApplicationContext::default();
     app.clear(true);
 
     app.add_element(
         "canvasRegion",
         UIElementWrapper {
-            position: CANVAS_REGION.top_left().cast().unwrap() + cgmath::vec2(0, -2),
+            position: CANVAS_REGION.top_left().cast().unwrap() + vec2(0, -2),
             refresh: UIConstraintRefresh::RefreshAndWait,
             inner: UIElement::Region {
-                size: CANVAS_REGION.size().cast().unwrap() + cgmath::vec2(1, 3),
+                size: CANVAS_REGION.size().cast().unwrap() + vec2(1, 3),
                 border_px: 0,
                 border_color: color::BLACK,
             },
@@ -271,8 +267,10 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 return;
             }
 
-            let col = black(PEN_BLACK.load(Ordering::Relaxed));
-            let mult = if col == color::WHITE { 64 } else { 2 };
+            let from_pen = PEN_BLACK.load(Ordering::Relaxed);
+            let from_btn = BUTTON_ERASE.is_pressed();
+            let col = black(from_pen && !from_btn);
+            let mult = if col == color::WHITE { 50 } else { 2 };
 
             {
                 let mut scribbles = SCRIBBLES.lock().unwrap();
@@ -392,12 +390,63 @@ fn maybe_send_drawing() {
     scribbles.clear();
 }
 
+static BUTTON_ERASE: Lazy<Button> = Lazy::new(Button::new);
+
+#[derive(Debug)]
+struct Button {
+    inner: AtomicI32,
+}
+impl Button {
+    fn new() -> Self {
+        Self { inner: AtomicI32::new(-1) }
+    }
+
+    fn is_pressed(&self) -> bool {
+        self.inner.load(Ordering::Relaxed) != -1 // -1=off
+    }
+
+    // Returns whether button is /just now/ pressed.
+    fn press(&self, tracking_id: i32) -> bool {
+        assert!(tracking_id != -1, "bad btn press");
+        -1 == self.inner.swap(tracking_id, Ordering::Relaxed)
+    }
+
+    // Resets button if it's tracking `tracking_id`, returning `true` on success.
+    fn unpress(&self, tracking_id: i32) -> bool {
+        assert!(tracking_id != -1, "bad btn unpress");
+        let r = self.inner.compare_exchange(tracking_id, -1, Ordering::Relaxed, Ordering::Relaxed);
+        r.is_ok()
+    }
+}
+
 fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
+    debug!("[on_tch] {input:?}");
+
+    let btn_erase = mxcfb_rect {
+        top: 0, // y
+        left: 100,
+        width: 100,
+        height: 60, // y
+    };
+
     match input {
-        MultitouchEvent::Release { finger: Finger { pos: Point2 { x, y }, .. }, .. } => {
-            info!("[on_tch] finger on zone x:{x} y:{y}")
+        MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } => {
+            let Finger { tracking_id, pos, .. } = finger;
+            let pos: Point2<u32> = (pos.x.into(), pos.y.into()).into();
+            if btn_erase.contains_point(&pos) {
+                if BUTTON_ERASE.press(tracking_id) {
+                    info!("[on_tch] ERASE({tracking_id}) just now pressed!");
+                }
+            } else if BUTTON_ERASE.unpress(tracking_id) {
+                info!("[on_tch] reset {tracking_id}!");
+            }
         }
-        _ => debug!("[on_tch] {input:?}"),
+        MultitouchEvent::Release { finger: Finger { tracking_id, .. } } => {
+            if BUTTON_ERASE.unpress(tracking_id) {
+                info!("[on_tch] reset {tracking_id}");
+            }
+        }
+        MultitouchEvent::Unknown => warn!("[on_tch] unknown event!"),
     }
 }
 
@@ -609,13 +658,13 @@ async fn paint(app: &mut ApplicationContext<'_>, drawing: Drawing) {
         if i != 0 {
             sleep(DRAWING_PACE).await;
         }
-        let points: Vec<(cgmath::Point2<f32>, i32, u32)> = vec![
+        let points: Vec<(Point2<f32>, i32, u32)> = vec![
             // start
-            (cgmath::Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
+            (Point2 { x: xs[i], y: ys[i] }, ps[i], ws[i]),
             // ctrl
-            (cgmath::Point2 { x: xs[i + 1], y: ys[i + 1] }, ps[i + 1], ws[i + 1]),
+            (Point2 { x: xs[i + 1], y: ys[i + 1] }, ps[i + 1], ws[i + 1]),
             // end
-            (cgmath::Point2 { x: xs[i + 2], y: ys[i + 2] }, ps[i + 2], ws[i + 2]),
+            (Point2 { x: xs[i + 2], y: ys[i + 2] }, ps[i + 2], ws[i + 2]),
         ];
         let radii: Vec<f32> = points
             .iter()
