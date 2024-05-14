@@ -47,3 +47,16 @@ uuid = { version = "1", features = ["v4"] }
 # version = "0.6"
 git = "https://github.com/canselcik/libremarkable"
 branch = "master"
+features = [
+    "appctx",
+    "battery",
+    "framebuffer",
+    "framebuffer-drawing",
+    "framebuffer-storage",
+    "framebuffer-text-drawing",
+    "framebuffer-types",
+    "image",
+    "input",
+    "input-types",
+    "scan",
+]
