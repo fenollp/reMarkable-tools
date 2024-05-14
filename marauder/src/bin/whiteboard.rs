@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    fmt,
     process::Command,
     sync::{
         atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
@@ -268,7 +269,7 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             }
 
             let from_pen = PEN_BLACK.load(Ordering::Relaxed);
-            let from_btn = BUTTON_ERASE.is_pressed();
+            let from_btn = BTN_ERASE.is_pressed();
             let col = black(from_pen && !from_btn);
             let mult = if col == color::WHITE { 50 } else { 2 };
 
@@ -390,15 +391,28 @@ fn maybe_send_drawing() {
     scribbles.clear();
 }
 
-static BUTTON_ERASE: Lazy<Button> = Lazy::new(Button::new);
+static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
 
 #[derive(Debug)]
 struct Button {
+    name: &'static str,
+    area: mxcfb_rect,
     inner: AtomicI32,
 }
+impl fmt::Display for Button {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "btn:{}<{}>", self.name, self.inner.load(Ordering::Relaxed))
+    }
+}
 impl Button {
-    fn new() -> Self {
-        Self { inner: AtomicI32::new(-1) }
+    fn new(nth: u8, name: &'static str) -> Self {
+        let area = mxcfb_rect {
+            top: 0, // y
+            left: 100 * u32::from(nth),
+            width: 100,
+            height: 60, // y
+        };
+        Self { name, area, inner: AtomicI32::new(-1) }
     }
 
     fn is_pressed(&self) -> bool {
@@ -407,46 +421,41 @@ impl Button {
 
     // Returns whether button is /just now/ pressed.
     fn press(&self, tracking_id: i32) -> bool {
-        assert!(tracking_id != -1, "bad btn press");
+        assert!(tracking_id != -1, "bad btn press {}", self.name);
         -1 == self.inner.swap(tracking_id, Ordering::Relaxed)
     }
 
     // Resets button if it's tracking `tracking_id`, returning `true` on success.
     fn unpress(&self, tracking_id: i32) -> bool {
-        assert!(tracking_id != -1, "bad btn unpress");
+        assert!(tracking_id != -1, "bad btn unpress {}", self.name);
         let r = self.inner.compare_exchange(tracking_id, -1, Ordering::Relaxed, Ordering::Relaxed);
         r.is_ok()
     }
+
+    fn contains(&self, pos: &Point2<u32>) -> bool {
+        self.area.contains_point(pos)
+    }
 }
 
-fn on_tch(_app: &mut ApplicationContext, input: MultitouchEvent) {
-    debug!("[on_tch] {input:?}");
-
-    let btn_erase = mxcfb_rect {
-        top: 0, // y
-        left: 100,
-        width: 100,
-        height: 60, // y
-    };
-
+fn on_tch(_: &mut ApplicationContext, input: MultitouchEvent) {
     match input {
         MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } => {
             let Finger { tracking_id, pos, .. } = finger;
             let pos: Point2<u32> = (pos.x.into(), pos.y.into()).into();
-            if btn_erase.contains_point(&pos) {
-                if BUTTON_ERASE.press(tracking_id) {
-                    info!("[on_tch] ERASE({tracking_id}) just now pressed!");
+            if BTN_ERASE.contains(&pos) {
+                if BTN_ERASE.press(tracking_id) {
+                    info!("{BTN_ERASE:?} just now pressed!");
                 }
-            } else if BUTTON_ERASE.unpress(tracking_id) {
-                info!("[on_tch] reset {tracking_id}!");
+            } else if BTN_ERASE.unpress(tracking_id) {
+                info!("{BTN_ERASE:?} reset!");
             }
         }
         MultitouchEvent::Release { finger: Finger { tracking_id, .. } } => {
-            if BUTTON_ERASE.unpress(tracking_id) {
-                info!("[on_tch] reset {tracking_id}");
+            if BTN_ERASE.unpress(tracking_id) {
+                info!("{BTN_ERASE:?} reset");
             }
         }
-        MultitouchEvent::Unknown => warn!("[on_tch] unknown event!"),
+        MultitouchEvent::Unknown => {}
     }
 }
 
