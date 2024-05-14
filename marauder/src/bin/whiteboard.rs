@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     fmt,
-    process::Command,
+    process::{self, Command},
     sync::{
         atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
         mpsc::{self, Receiver},
@@ -25,7 +25,7 @@ use libremarkable::{
         storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
     image,
-    input::{Finger, GPIOEvent, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen},
+    input::{Finger, GPIOEvent, InputEvent, MultitouchEvent, WacomEvent, WacomPen},
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
@@ -423,73 +423,42 @@ impl Button {
     fn contains(&self, pos: &Point2<u32>) -> bool {
         self.area.contains_point(pos)
     }
+
+    fn process_event(&self, input: MultitouchEvent) {
+        match input {
+            MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } => {
+                let Finger { tracking_id, pos, .. } = finger;
+                let pos: Point2<u32> = (pos.x.into(), pos.y.into()).into();
+                if self.contains(&pos) {
+                    if self.press(tracking_id) {
+                        info!("{self:?} just now pressed!");
+                    }
+                } else if self.unpress(tracking_id) {
+                    info!("{self:?} reset!");
+                }
+            }
+            MultitouchEvent::Release { finger: Finger { tracking_id, .. } } => {
+                if self.unpress(tracking_id) {
+                    info!("{self:?} reset");
+                }
+            }
+            MultitouchEvent::Unknown => {}
+        }
+    }
 }
 
 fn on_tch(_: &mut ApplicationContext, input: MultitouchEvent) {
-    match input {
-        MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } => {
-            let Finger { tracking_id, pos, .. } = finger;
-            let pos: Point2<u32> = (pos.x.into(), pos.y.into()).into();
-            if BTN_ERASE.contains(&pos) {
-                if BTN_ERASE.press(tracking_id) {
-                    info!("{BTN_ERASE:?} just now pressed!");
-                }
-            } else if BTN_ERASE.unpress(tracking_id) {
-                info!("{BTN_ERASE:?} reset!");
-            }
-        }
-        MultitouchEvent::Release { finger: Finger { tracking_id, .. } } => {
-            if BTN_ERASE.unpress(tracking_id) {
-                info!("{BTN_ERASE:?} reset");
-            }
-        }
-        MultitouchEvent::Unknown => {}
-    }
+    BTN_ERASE.process_event(input);
 }
 
-fn on_btn(app: &mut ApplicationContext, input: GPIOEvent) {
-    let (btn, pressed) = match input {
-        GPIOEvent::Press { button } => (button, true),
-        GPIOEvent::Unpress { button } => (button, false),
-        GPIOEvent::Unknown => return,
-    };
+fn on_btn(_: &mut ApplicationContext, input: GPIOEvent) {
+    info!("[on_btn] input = {input:?}");
 
-    // Ignoring the unpressed event
-    if !pressed {
-        return;
+    if let GPIOEvent::Press { .. } = input {
+        warn!("[on_btn] about to shut down & switch back to xochitl");
+        Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
+        process::exit(0);
     }
-
-    // Simple but effective accidental button press filtering
-    if WACOM_IN_RANGE.load(Ordering::Relaxed) {
-        return;
-    }
-
-    match btn {
-        PhysicalButton::RIGHT => {
-            info!(">>> pressed right button");
-        }
-        PhysicalButton::LEFT => {
-            info!(">>> pressed left button");
-        }
-        PhysicalButton::MIDDLE => {
-            app.clear(true);
-            app.draw_elements();
-
-            let appref = app.upgrade_ref();
-            spawn_blocking(move || {
-                tokio::runtime::Handle::current().block_on(async move {
-                    paint_mouldings(appref).await;
-                })
-            });
-        }
-        PhysicalButton::POWER => {
-            Command::new("systemctl").arg("start").arg("xochitl").spawn().unwrap();
-            std::process::exit(0);
-        }
-        PhysicalButton::WAKEUP => {
-            info!("WAKEUP button(?) pressed(?)");
-        }
-    };
 }
 
 fn add_xuser<T>(req: &mut Request<T>, user_id: &str) -> Result<()> {
