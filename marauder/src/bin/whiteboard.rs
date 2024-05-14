@@ -96,7 +96,6 @@ type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
 type PosNpress = (Point2<f32>, i32); // position and pressure
 
 static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
-static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
 static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -254,17 +253,8 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
             let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
 
             if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
-                // This is so that we can click the buttons outside the canvas region
-                // normally meant to be touched with a finger using our stylus
                 wacom_stack.clear();
                 maybe_send_drawing();
-                if UNPRESS_OBSERVED.fetch_and(false, Ordering::Relaxed) {
-                    let region = app
-                        .find_active_region(position.y.round() as u16, position.x.round() as u16);
-                    if let Some(element) = region.map(|(region, _)| region.element.clone()) {
-                        (region.unwrap().0.handler)(app, element);
-                    }
-                }
                 return;
             }
 
@@ -349,8 +339,6 @@ fn on_pen(app: &mut ApplicationContext, input: WacomEvent) {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                 wacom_stack.clear();
                 maybe_send_drawing();
-
-                UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
             }
         }
         WacomEvent::Unknown => info!("got WacomEvent::Unknown"),
@@ -518,11 +506,11 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Re
 
     let mut counter = 0;
     let mut previous_checksum: u64 = 0;
-    let mut ticker = interval(Duration::from_millis(1_500));
+    let mut ticker = interval(Duration::from_millis(100));
     loop {
         ticker.tick().await;
 
-        let wakeup = counter == 10;
+        let wakeup = counter % 100 == 0; // Every 10s
         if wakeup {
             counter = 0;
         }
@@ -786,31 +774,29 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     let appref6 = app.upgrade_ref();
     spawn(async move {
         loop {
-            match QRCODE.read().unwrap().as_ref() {
-                None => (),
-                Some(qrcode) => {
-                    debug!("[qrcode] painting");
-                    let fb = appref6.get_framebuffer_ref();
-                    let region = mxcfb_rect {
-                        top: 4,
-                        left: TOOLBAR_REGION.width - (4 + qrcode.width()),
-                        height: qrcode.height(),
-                        width: qrcode.width(),
-                    };
-                    fb.draw_image(qrcode, region.top_left().cast().unwrap());
-                    fb.partial_refresh(
-                        &region,
-                        PartialRefreshMode::Async,
-                        waveform_mode::WAVEFORM_MODE_GC16,
-                        display_temp::TEMP_USE_PAPYRUS,
-                        dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-                        0,
-                        false,
-                    );
-                    debug!("[qrcode] done");
-                    break;
-                }
-            };
+            sleep(Duration::from_millis(50)).await;
+            if let Some(qrcode) = QRCODE.read().unwrap().as_ref() {
+                debug!("[qrcode] painting");
+                let fb = appref6.get_framebuffer_ref();
+                let region = mxcfb_rect {
+                    top: 4,
+                    left: TOOLBAR_REGION.width - (4 + qrcode.width()),
+                    height: qrcode.height(),
+                    width: qrcode.width(),
+                };
+                fb.draw_image(qrcode, region.top_left().cast().unwrap());
+                fb.partial_refresh(
+                    &region,
+                    PartialRefreshMode::Async,
+                    waveform_mode::WAVEFORM_MODE_GC16,
+                    display_temp::TEMP_USE_PAPYRUS,
+                    dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                    0,
+                    false,
+                );
+                info!("[qrcode] done");
+                break;
+            }
         }
     });
 
@@ -818,10 +804,10 @@ async fn paint_mouldings(app: &mut ApplicationContext<'_>) {
     spawn(async move {
         paint(appref1, top_bar(c)).await;
     });
-    let appref2 = app.upgrade_ref();
-    spawn(async move {
-        paint_vec(appref2, drawings::top_left_help::f(c)).await;
-    });
+    // let appref2 = app.upgrade_ref();
+    // spawn(async move {
+    //     paint_vec(appref2, drawings::top_left_help::f(c)).await;
+    // });
     let appref3 = app.upgrade_ref();
     spawn(async move {
         paint_vec(appref3, drawings::top_left_white_empty_square::f(c)).await;
