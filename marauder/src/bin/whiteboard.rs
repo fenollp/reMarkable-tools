@@ -1,9 +1,8 @@
 use std::{
     collections::VecDeque,
-    fmt,
     process::{self, Command},
     sync::{
-        atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc::{self, Receiver},
         Mutex, OnceLock, RwLock,
     },
@@ -25,11 +24,11 @@ use libremarkable::{
         storage, FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
     image,
-    input::{Finger, GPIOEvent, InputEvent, MultitouchEvent, WacomEvent, WacomPen},
+    input::{GPIOEvent, InputEvent, MultitouchEvent, WacomEvent, WacomPen},
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
-use marauder::fonts;
+use marauder::{buttons::Button, fonts};
 use once_cell::sync::Lazy;
 use pb::proto::hypercards::{
     drawing::Color, event, screen_sharing_client::ScreenSharingClient,
@@ -107,6 +106,8 @@ static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(Non
 static ARGS: OnceLock<Args> = OnceLock::new();
 
 static PEN_BLACK: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
+
+static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
@@ -377,74 +378,6 @@ fn maybe_send_drawing() {
         debug!("unlocked TX");
     }
     scribbles.clear();
-}
-
-static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
-
-#[derive(Debug)]
-struct Button {
-    name: &'static str,
-    area: mxcfb_rect,
-    inner: AtomicI32,
-}
-impl fmt::Display for Button {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "btn:{}<{}>", self.name, self.inner.load(Ordering::Relaxed))
-    }
-}
-impl Button {
-    fn new(nth: u8, name: &'static str) -> Self {
-        let area = mxcfb_rect {
-            top: 0, // y
-            left: 100 * u32::from(nth),
-            width: 100,
-            height: 60, // y
-        };
-        Self { name, area, inner: AtomicI32::new(-1) }
-    }
-
-    fn is_pressed(&self) -> bool {
-        self.inner.load(Ordering::Relaxed) != -1 // -1=off
-    }
-
-    // Returns whether button is /just now/ pressed.
-    fn press(&self, tracking_id: i32) -> bool {
-        assert!(tracking_id != -1, "bad btn press {}", self.name);
-        -1 == self.inner.swap(tracking_id, Ordering::Relaxed)
-    }
-
-    // Resets button if it's tracking `tracking_id`, returning `true` on success.
-    fn unpress(&self, tracking_id: i32) -> bool {
-        assert!(tracking_id != -1, "bad btn unpress {}", self.name);
-        let r = self.inner.compare_exchange(tracking_id, -1, Ordering::Relaxed, Ordering::Relaxed);
-        r.is_ok()
-    }
-
-    fn contains(&self, pos: &Point2<u32>) -> bool {
-        self.area.contains_point(pos)
-    }
-
-    fn process_event(&self, input: MultitouchEvent) {
-        match input {
-            MultitouchEvent::Press { finger } | MultitouchEvent::Move { finger } => {
-                let Finger { tracking_id, pos, .. } = finger;
-                let pos: Point2<u32> = (pos.x.into(), pos.y.into()).into();
-                if self.contains(&pos) {
-                    if self.press(tracking_id) {
-                        info!("{self:?} just now pressed!");
-                    }
-                } else if self.unpress(tracking_id) {
-                    info!("{self:?} reset!");
-                }
-            }
-            MultitouchEvent::Release { finger: Finger { tracking_id, .. } } => {
-                if self.unpress(tracking_id) {
-                    info!("{self:?} reset");
-                }
-            }
-            MultitouchEvent::Unknown => {}
-        }
-    }
 }
 
 fn on_tch(_: &mut ApplicationContext, input: MultitouchEvent) {
