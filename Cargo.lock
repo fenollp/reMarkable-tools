@@ -709,16 +709,16 @@ dependencies = [
 
 [[package]]
 name = "fontdb"
-version = "0.16.2"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0299020c3ef3f60f526a4f64ab4a3d4ce116b1acbf24cdd22da0068e5d81dc3"
+checksum = "e32eac81c1135c1df01d4e6d4233c47ba11f6a6d07f33e0bba09d18797077770"
 dependencies = [
  "fontconfig-parser",
  "log",
  "memmap2 0.9.4",
  "slotmap",
  "tinyvec",
- "ttf-parser 0.20.0",
+ "ttf-parser 0.21.1",
 ]
 
 [[package]]
@@ -1986,6 +1986,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cd14fd5e3b777a7422cca79358c57a8f6e3a703d9ac187448d0daf220c2407f"
 
 [[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
+
+[[package]]
 name = "rstar"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2074,14 +2080,14 @@ dependencies = [
 
 [[package]]
 name = "rustybuzz"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88117946aa1bfb53c2ae0643ceac6506337f44887f8c9fbfb43587b1cc52ba49"
+checksum = "7730060ad401b0d1807c904ea56735288af101430aa0d2ab8358b789f5f37002"
 dependencies = [
  "bitflags 2.5.0",
  "bytemuck",
  "smallvec",
- "ttf-parser 0.20.0",
+ "ttf-parser 0.21.1",
  "unicode-bidi-mirroring 0.2.0",
  "unicode-ccc 0.2.0",
  "unicode-properties",
@@ -2124,7 +2130,7 @@ dependencies = [
  "svg2polylines",
  "svgtypes 0.15.1",
  "tokio",
- "usvg 0.41.0",
+ "usvg 0.42.0",
  "vsvg",
 ]
 
@@ -2688,9 +2694,9 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttf-parser"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
+checksum = "2c591d83f69777866b9126b24c6dd9a18351f177e49d625920d19f989fd31cf8"
 
 [[package]]
 name = "unicode-bidi"
@@ -2802,20 +2808,20 @@ dependencies = [
 
 [[package]]
 name = "usvg"
-version = "0.41.0"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c704361d822337cfc00387672c7b59eaa72a1f0744f62b2a68aa228a0c6927d"
+checksum = "b84ea542ae85c715f07b082438a4231c3760539d902e11d093847a0b22963032"
 dependencies = [
  "base64 0.22.1",
  "data-url 0.3.1",
  "flate2",
- "fontdb 0.16.2",
+ "fontdb 0.18.0",
  "imagesize",
  "kurbo 0.11.0",
  "log",
  "pico-args",
- "roxmltree 0.19.0",
- "rustybuzz 0.13.0",
+ "roxmltree 0.20.0",
+ "rustybuzz 0.14.0",
  "simplecss",
  "siphasher 1.0.1",
  "strict-num",
