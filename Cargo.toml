@@ -17,7 +17,6 @@ authors = [
 [workspace.dependencies]
 anyhow = "1"
 async-stream = "0.3"
-atomic = "0.6"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "env"] }
 crc-any = { version = "2", default-features = false, features = ["heapless"] }

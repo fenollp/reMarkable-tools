@@ -211,15 +211,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c59bdb34bc650a32731b31bd8f0829cc15d24a708ee31559e0bb34f2bc320cba"
 
 [[package]]
-name = "atomic"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d818003e740b63afc82337e3160717f4f63078720a810b7b903e70a5d1d2994"
-dependencies = [
- "bytemuck",
-]
-
-[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1269,7 +1260,7 @@ version = "0.7.0"
 source = "git+https://github.com/canselcik/libremarkable?branch=master#67114328b5b5c51b01e5a72ad7d27f0c0c5e81d8"
 dependencies = [
  "aabb-quadtree",
- "atomic 0.5.3",
+ "atomic",
  "cgmath",
  "epoll",
  "evdev",
@@ -1333,7 +1324,6 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-stream",
- "atomic 0.6.0",
  "chrono",
  "clap",
  "crc-any",

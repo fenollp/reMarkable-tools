@@ -1,40 +1,36 @@
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
 use std::{
     collections::VecDeque,
     process::Command,
     sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
+        atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
+        LazyLock, Mutex,
     },
     thread::sleep,
     time::Duration,
 };
 
-use atomic::Atomic;
 use chrono::{DateTime, Local};
 use libremarkable::{
-    appctx,
-    appctx::ApplicationContext,
+    appctx::{self, ApplicationContext},
     battery,
     framebuffer::{
-        cgmath, cgmath::EuclideanSpace, common::*, storage, FramebufferDraw, FramebufferIO,
-        FramebufferRefresh, PartialRefreshMode,
+        cgmath::{self, EuclideanSpace},
+        common::*,
+        storage::{self, CompressedCanvasState},
+        FramebufferDraw, FramebufferIO, FramebufferRefresh, PartialRefreshMode,
     },
-    image,
-    image::GenericImage,
+    image::{self, GenericImage},
     input::{
         GPIOEvent, InputDevice, InputEvent, MultitouchEvent, PhysicalButton, WacomEvent, WacomPen,
     },
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementHandle, UIElementWrapper},
 };
-// use rand::Rng;
-use marauder::modes::draw::DrawMode;
-use marauder::{modes::touch::TouchMode, strokes::Strokes, unipen};
-use once_cell::sync::Lazy;
-// use marauder::shapes::*;
+use log::{debug, error, info};
+use marauder::{
+    modes::{draw::DrawMode, touch::TouchMode},
+    strokes::Strokes,
+    unipen,
+};
 
 // This region will have the following size at rest:
 //   raw: 5896 kB
@@ -48,16 +44,16 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 
 type PosNpress = (cgmath::Point2<f32>, i32); // position and pressure
 
-static G_TOUCH_MODE: Lazy<Atomic<TouchMode>> = Lazy::new(|| Atomic::new(TouchMode::OnlyUI));
-static G_DRAW_MODE: Lazy<Atomic<DrawMode>> = Lazy::new(|| Atomic::new(DrawMode::default()));
-static UNPRESS_OBSERVED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
-static DRAWING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static SAVED_CANVAS: Lazy<Mutex<Option<storage::CompressedCanvasState>>> =
-    Lazy::new(|| Mutex::new(None));
-static SAVED_CANVAS_PREV: Lazy<Mutex<Option<storage::CompressedCanvasState>>> =
-    Lazy::new(|| Mutex::new(None));
+static G_TOUCH_MODE: LazyLock<AtomicU8> = LazyLock::new(|| AtomicU8::new(TouchMode::OnlyUI.into()));
+static G_DRAW_MODE: LazyLock<AtomicI32> = LazyLock::new(Default::default);
+static UNPRESS_OBSERVED: LazyLock<AtomicBool> = LazyLock::new(Default::default);
+static WACOM_IN_RANGE: LazyLock<AtomicBool> = LazyLock::new(Default::default);
+static WACOM_HISTORY: LazyLock<Mutex<VecDeque<PosNpress>>> = LazyLock::new(Default::default);
+static DRAWING: LazyLock<AtomicBool> = LazyLock::new(Default::default);
+static SAVED_CANVAS: LazyLock<Mutex<Option<CompressedCanvasState>>> =
+    LazyLock::new(Default::default);
+static SAVED_CANVAS_PREV: LazyLock<Mutex<Option<CompressedCanvasState>>> =
+    LazyLock::new(Default::default);
 
 // ####################
 // ## Button Handlers
@@ -72,7 +68,7 @@ fn on_undo(app: &mut ApplicationContext, _: UIElementHandle) {
             let framebuffer = app.get_framebuffer_ref();
             // TODO: restore & refresh only the subset region that was just drawn onto
             match framebuffer.restore_region(CANVAS_REGION, &decompressed) {
-                Err(e) => error!("Error while restoring region: {0}", e),
+                Err(e) => error!("Error while restoring region: {e}"),
                 Ok(_) => {
                     framebuffer.partial_refresh(
                         &CANVAS_REGION,
@@ -106,7 +102,7 @@ fn save_canvas(app: &mut ApplicationContext) {
                 let mut prev = SAVED_CANVAS_PREV.lock().unwrap();
                 *prev = Some((*compressed_state).clone());
             }
-            *hist = Some(storage::CompressedCanvasState::new(
+            *hist = Some(CompressedCanvasState::new(
                 buff.as_slice(),
                 CANVAS_REGION.height,
                 CANVAS_REGION.width,
@@ -219,11 +215,11 @@ fn on_invert_canvas(app: &mut ApplicationContext, element: UIElementHandle) {
 }
 
 fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
-    let (new_mode, next_name) = match G_DRAW_MODE.load(Ordering::Relaxed) {
+    let (new_mode, next_name) = match DrawMode::from(G_DRAW_MODE.load(Ordering::Relaxed)) {
         DrawMode::Erase(s) => (DrawMode::Draw(s), "Switch to BLACK".to_owned()),
         DrawMode::Draw(s) => (DrawMode::Erase(s), "Switch to WHITE".to_owned()),
     };
-    G_DRAW_MODE.store(new_mode, Ordering::Relaxed);
+    G_DRAW_MODE.store(new_mode.into(), Ordering::Relaxed);
 
     let element = app.get_element_by_name("colorToggle").unwrap();
     if let UIElement::Text { ref mut text, .. } = element.write().inner {
@@ -233,8 +229,8 @@ fn on_toggle_eraser(app: &mut ApplicationContext, _: UIElementHandle) {
 }
 
 fn on_tap_touchdraw_mode(app: &mut ApplicationContext, _: UIElementHandle) {
-    let new_val = G_TOUCH_MODE.load(Ordering::Relaxed).toggle();
-    G_TOUCH_MODE.store(new_val, Ordering::Relaxed);
+    let new_val = TouchMode::from(G_TOUCH_MODE.load(Ordering::Relaxed)).toggle();
+    G_TOUCH_MODE.store(new_val.into(), Ordering::Relaxed);
 
     let element = app.get_element_by_name("touchdrawMode").unwrap();
     if let UIElement::Text { ref mut text, .. } = element.write().inner {
@@ -250,7 +246,7 @@ fn on_tap_touchdraw_mode(app: &mut ApplicationContext, _: UIElementHandle) {
 // ####################
 
 fn change_brush_width(app: &mut ApplicationContext, delta: i32) {
-    let current = G_DRAW_MODE.load(Ordering::Relaxed);
+    let current = DrawMode::from(G_DRAW_MODE.load(Ordering::Relaxed));
     let current_size = current.get_size() as i32;
     let proposed_size = current_size + delta;
     let new_size = proposed_size.clamp(1, 99);
@@ -258,7 +254,7 @@ fn change_brush_width(app: &mut ApplicationContext, delta: i32) {
         return;
     }
 
-    G_DRAW_MODE.store(current.set_size(new_size as u32), Ordering::Relaxed);
+    G_DRAW_MODE.store(current.set_size(new_size as u32).into(), Ordering::Relaxed);
 
     let element = app.get_element_by_name("displaySize").unwrap();
     if let UIElement::Text { ref mut text, .. } = element.write().inner {
@@ -336,7 +332,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: WacomEvent) {
                 DRAWING.store(true, Ordering::Relaxed);
             }
 
-            let (col, mult) = match G_DRAW_MODE.load(Ordering::Relaxed) {
+            let (col, mult) = match G_DRAW_MODE.load(Ordering::Relaxed).into() {
                 DrawMode::Draw(s) => (color::BLACK, s),
                 DrawMode::Erase(s) => (color::WHITE, s * 3),
             };
@@ -421,7 +417,7 @@ fn on_touch_handler(app: &mut ApplicationContext, input: MultitouchEvent) {
         if !CANVAS_REGION.contains_point(&position.cast().unwrap()) {
             return;
         }
-        let rect = match G_TOUCH_MODE.load(Ordering::Relaxed) {
+        let rect = match G_TOUCH_MODE.load(Ordering::Relaxed).into() {
             TouchMode::Bezier => {
                 let position_float = position.cast().unwrap();
                 let points = [
@@ -684,7 +680,10 @@ fn main() {
         UIElementWrapper {
             position: (1080, 670).into(),
             inner: UIElement::Text {
-                text: format!("size: {0}", G_DRAW_MODE.load(Ordering::Relaxed).get_size()),
+                text: format!(
+                    "size: {0}",
+                    DrawMode::from(G_DRAW_MODE.load(Ordering::Relaxed)).get_size()
+                ),
                 border_px: 0,
                 foreground: color::BLACK,
                 scale: 45.0,
