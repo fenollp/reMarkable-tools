@@ -32,3 +32,28 @@ impl TouchMode {
         }
     }
 }
+
+impl From<TouchMode> for u8 {
+    fn from(mode: TouchMode) -> Self {
+        match mode {
+            TouchMode::OnlyUI => 1,
+            TouchMode::Bezier => 2,
+            TouchMode::Circles => 3,
+            TouchMode::Diamonds => 4,
+            TouchMode::FillDiamonds => 5,
+        }
+    }
+}
+
+impl From<u8> for TouchMode {
+    fn from(mode: u8) -> Self {
+        match mode {
+            1 => Self::OnlyUI,
+            2 => Self::Bezier,
+            3 => Self::Circles,
+            4 => Self::Diamonds,
+            5 => Self::FillDiamonds,
+            _ => panic!("Unmapped mode value: {mode}"),
+        }
+    }
+}

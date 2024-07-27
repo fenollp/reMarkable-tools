@@ -8,11 +8,11 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-drawings.path = "../drawings"
+#drawings.workspace = true
 env_logger.workspace = true
 libremarkable.workspace = true
 log.workspace = true
-pb.path = "../pb"
+pb.workspace = true
 ringbuffer.workspace = true
 serde-jsonlines.workspace = true
 serde.workspace = true
@@ -22,8 +22,8 @@ tokio.workspace = true
 # lyon_geom = "1"
 quick-xml = "0.23"
 svg-path-parser = "0.1.1"
-svgtypes = "0.15"
+#svgtypes = "0.15"
 # thiserror = "1"
-usvg = "0.42"
+#usvg = "0.42"
 svg2polylines = "0.8"
 vsvg = "0.4"

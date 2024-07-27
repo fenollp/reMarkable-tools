@@ -4,7 +4,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc::{self, Receiver},
-        Mutex, OnceLock, RwLock,
+        LazyLock, Mutex, OnceLock, RwLock,
     },
     time::Duration,
 };
@@ -28,8 +28,10 @@ use libremarkable::{
     ui_extensions::element::{UIConstraintRefresh, UIElement, UIElementWrapper},
 };
 use log::{debug, error, info, warn};
-use marauder::{buttons::Button, fonts};
-use once_cell::sync::Lazy;
+use marauder::{
+    buttons::Button,
+    fonts::{self, Font},
+};
 use pb::proto::hypercards::{
     drawing::Color, event, screen_sharing_client::ScreenSharingClient,
     whiteboard_client::WhiteboardClient, Drawing, Event, RecvEventsReq, SendEventReq,
@@ -84,6 +86,12 @@ const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
 const TOOLBAR_REGION: mxcfb_rect =
     mxcfb_rect { top: 0, left: 0, height: TOOLBAR_HEIGHT, width: DISPLAYWIDTH as u32 };
+// (0,0) --x-> (x=1404,0)
+// |
+// y
+// |
+// v
+// (0,1872)
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: TOOLBAR_HEIGHT,
     left: 0,
@@ -94,21 +102,21 @@ const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
 type SomeRawImage = image::ImageBuffer<image::Rgb<u8>, Vec<u8>>;
 type PosNpress = (Point2<f32>, i32); // position and pressure
 
-static PEOPLE_COUNT: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
-static WACOM_IN_RANGE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static WACOM_HISTORY: Lazy<Mutex<VecDeque<PosNpress>>> = Lazy::new(|| Mutex::new(VecDeque::new()));
-static SCRIBBLES: Lazy<Mutex<Vec<Scribble>>> = Lazy::new(|| Mutex::new(Vec::new()));
-static TX: Lazy<Mutex<Option<mpsc::Sender<Drawing>>>> = Lazy::new(|| Mutex::new(None));
-static FONT: Lazy<fonts::Font> = Lazy::new(|| fonts::emsdelight_swash_caps().unwrap());
-static NEEDS_SHARING: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
-static QRCODE: Lazy<RwLock<Option<SomeRawImage>>> = Lazy::new(|| RwLock::new(None));
+static PEOPLE_COUNT: LazyLock<AtomicU32> = LazyLock::new(Default::default);
+static WACOM_IN_RANGE: LazyLock<AtomicBool> = LazyLock::new(Default::default);
+static WACOM_HISTORY: LazyLock<Mutex<VecDeque<PosNpress>>> = LazyLock::new(Default::default);
+static SCRIBBLES: LazyLock<Mutex<Vec<Scribble>>> = LazyLock::new(Default::default);
+static TX: LazyLock<Mutex<Option<mpsc::Sender<Drawing>>>> = LazyLock::new(Default::default);
+static FONT: LazyLock<Font> = LazyLock::new(|| fonts::emsdelight_swash_caps().unwrap());
+static NEEDS_SHARING: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(true));
+static QRCODE: LazyLock<RwLock<Option<SomeRawImage>>> = LazyLock::new(Default::default);
 
 static ARGS: OnceLock<Args> = OnceLock::new();
 
-static PEN_BLACK: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(true));
+static PEN_BLACK: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(true));
 
-static BTN_ERASE: Lazy<Button> = Lazy::new(|| Button::new(1, "erase"));
-static BTN_TIMES3: Lazy<Button> = Lazy::new(|| Button::new(2, "times3"));
+static BTN_ERASE: LazyLock<Button> = LazyLock::new(|| Button::new(1, "erase"));
+static BTN_TIMES3: LazyLock<Button> = LazyLock::new(|| Button::new(2, "times3"));
 
 const DRAWING_PACE: Duration = Duration::from_millis(2);
 const INTER_DRAWING_PACE: Duration = Duration::from_millis(8);
