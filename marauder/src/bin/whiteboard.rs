@@ -84,6 +84,12 @@ const TOOLBAR_BAR_WIDTH: u32 = 2;
 const TOOLBAR_HEIGHT: u32 = 70 + TOOLBAR_BAR_WIDTH;
 const TOOLBAR_REGION: mxcfb_rect =
     mxcfb_rect { top: 0, left: 0, height: TOOLBAR_HEIGHT, width: DISPLAYWIDTH as u32 };
+// (0,0) --x-> (x=1404,0)
+// |
+// y
+// |
+// v
+// (0,1872)
 const CANVAS_REGION: mxcfb_rect = mxcfb_rect {
     top: TOOLBAR_HEIGHT,
     left: 0,
