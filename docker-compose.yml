@@ -1,7 +1,7 @@
 services:
 
   nats:
-    image: docker.io/library/nats:2-alpine@sha256:786d33ad98a8a73aa4f10d909dcb550de62f1552c1d33eb21c95758495d33a5b
+    image: docker.io/library/nats:2-alpine@sha256:2c19fe5c950ed2ea9e8c9d1f16d89d2f4a2595e51fa0d3ac37d8c537be30aec9
     environment:
       # Only here so refs can be bound
       _1: &NATS_USER 'reMarkable-HyperCards'
@@ -20,7 +20,7 @@ services:
     # - '127.0.0.1:8222:8222'
 
   redis:
-    image: docker.io/library/redis:5-alpine@sha256:a04b57e05b784a406bc818f6b450233328c4115a1e1f104d84ce916eb1583925
+    image: docker.io/library/redis:5-alpine@sha256:1a3c609295332f1ce603948142a132656c92a08149d7096e203058533c415b8c
     environment:
       # Only here so refs can be bound
       _1: &REDIS_HOST 'redis'
