@@ -1332,7 +1332,7 @@ dependencies = [
  "pb",
  "prost",
  "qrcode-generator",
- "quick-xml 0.22.0",
+ "quick-xml 0.31.0",
  "rand",
  "serde",
  "tokio",
@@ -1787,16 +1787,6 @@ checksum = "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142"
 
 [[package]]
 name = "quick-xml"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8533f14c8382aaad0d592c812ac3b826162128b65662331e1127b45c3d18536b"
-dependencies = [
- "memchr",
- "serde",
-]
-
-[[package]]
-name = "quick-xml"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11bafc859c6815fbaffbbbf4229ecb767ac913fecb27f9ad4343662e9ef099ea"
@@ -1811,6 +1801,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1004a344b30a54e2ee58d66a71b32d2db2feb0a31f9a2d302bf0536f15de2a33"
 dependencies = [
  "memchr",
+ "serde",
 ]
 
 [[package]]
@@ -2054,7 +2045,7 @@ dependencies = [
  "libremarkable",
  "log",
  "pb",
- "quick-xml 0.23.1",
+ "quick-xml 0.31.0",
  "ringbuffer",
  "serde",
  "serde-jsonlines",

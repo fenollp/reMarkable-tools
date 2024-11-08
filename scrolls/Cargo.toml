@@ -20,7 +20,7 @@ tokio.workspace = true
 
 # TODO: filter out + move to workspace
 # lyon_geom = "1"
-quick-xml = "0.23"
+quick-xml = "0.31"
 svg-path-parser = "0.1.1"
 #svgtypes = "0.15"
 # thiserror = "1"
