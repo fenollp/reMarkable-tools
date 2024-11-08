@@ -9,7 +9,7 @@ updates:
 
 - package-ecosystem: 'docker'
   open-pull-requests-limit: 10
-  directory: '/'
+  directories: ['**/*']
   schedule:
     interval: 'daily'
 
