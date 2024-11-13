@@ -24,3 +24,5 @@ updates:
   directory: '/'
   schedule:
     interval: 'weekly'
+  allow:
+  - dependency-type: 'all' # Allow both direct and indirect updates for all packages
