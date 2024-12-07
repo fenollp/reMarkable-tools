@@ -3,7 +3,7 @@ use std::{env, fs};
 use marauder::unipen;
 
 // turn image drawing to hand sketch
-///rainy stlye movie romantic
+//  rainy stlye movie romantic
 //https://convertimage.net/online-photo-effects/online-photo-drawing-sketch.asp
 
 // ultra high contrast image to vector
@@ -11,7 +11,7 @@ use marauder::unipen;
 
 // ascii art
 //   https://www.text-image.com/convert/pic2ascii.cgi
-///large large dezoomed
+//  large large dezoomed
 
 // xkcd drawing style transfer
 //   https://jakevdp.github.io/blog/2012/10/07/xkcd-style-plots-in-matplotlib/
@@ -23,13 +23,13 @@ use marauder::unipen;
 //https://news.ycombinator.com/item?id=9302740
 //https://www.reddit.com/r/xkcd/comments/2i1i37/download_and_use_randalls_handwriting_as_a_font/
 //https://xkcdsucks.blogspot.com/2009/03/xkcdsucks-is-proud-to-present-humor.html
-///a tight columned GPT-3 monologue each finishing the other's sentence / writing the next paragraph, live
+//  a tight columned GPT-3 monologue each finishing the other's sentence / writing the next paragraph, live
 //https://github.com/ipython/xkcd-font
 
 // turn image into xkcd drawing
 //https://jakei.github.io/MyWebpage/sec_Projects/page_xkcd_style/index.html
-///remarkable style GIFs 4realz
-///future= animate the sketches in a theatral way/tight twitter loop
+//  remarkable style GIFs 4realz
+//  future= animate the sketches in a theatral way/tight twitter loop
 //https://davidwalsh.name/cmx-js
 
 // render svg lines as a drawing
