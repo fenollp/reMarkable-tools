@@ -6,7 +6,7 @@
 //! https://github.com/googlecreativelab/quickdraw-dataset/issues/19#issuecomment-402247262
 //! https://www.wikiwand.com/fr/Algorithme_de_Knuth-Morris-Pratt
 //!
-use std::{env, iter::repeat, time::Duration};
+use std::{env, iter::repeat_n, time::Duration};
 
 use anyhow::Result;
 use libremarkable::{
@@ -118,8 +118,8 @@ impl DrawingBis {
                 Drawing {
                     xs: xs.into_iter().map(f32::from).collect(),
                     ys: ys.into_iter().map(f32::from).collect(),
-                    pressures: repeat(PRESSURE).take(n).collect(),
-                    widths: repeat(WIDTH).take(n).collect(),
+                    pressures: repeat_n(PRESSURE, n).collect(),
+                    widths: repeat_n(WIDTH, n).collect(),
                     color: Color::Black as i32,
                 }
             })
