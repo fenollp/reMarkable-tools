@@ -1,0 +1,29 @@
+# Collaborative Whiteboard
+
+- Handle resume correctly (with Oxide and other launchers)
+* week 
+
+- Implement a basic selection tool menu. Bare minimum is pen and eraser. Everything else such as thickness/color would be a nice addon but not strictly needed. In our line of work we don't need fancy stuff such as brushes or layers (but clearly the more the merrier if we think in terms of broader community).
+* couple days
+- Implement buttons as gestures for Remarkable2. Really any solution works here, the only thing to keep in mind is that RM2 has no buttons so whatever is controlled by buttons will have to have also another form of input.
+* 
+
+- Implement pen eraser usage on RM2. I guess this is strictly dependent on the point above.
+* done
+
+- Implement the possibility to 'turn' the whiteboard page, or implement the possibility to zoom in/out and scroll the whiteboard, whatever is easier. The goal here is 'not running out of writing surface'.
+* 
+
+
+- config file
+- Give the possibility to specify server address via GUI or as a variable stored in a file, whatever is easier. In this way researchers can connect to different servers easily.
+- SSH tooling to install/upgrade/handle a flottila
+* a couple days
+
+- Give the possibility to draw in web browser. This would allow users without Remarkable tablets to collaborate (e.g. by using Wacom tablets on their ends).
+* some research => couple weeks?
+* as a fallback from normal usage
+
+- Give the possibility to save whiteboard pages (in PDF or some other format, such as PNG).
+* in webui or rm2
+
