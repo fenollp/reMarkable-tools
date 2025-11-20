@@ -35,7 +35,7 @@ clean:
 update: SHELL := /bin/bash
 update:
 	[[ 'libprotoc $(GPB)' = $$($(PROTOC) --version) ]]
-	cargo update
+	cargo update --recursive
 	$(MAKE) $@ -C whiteboard-server
 	$(COMPOSE) pull --ignore-pull-failures
 	$(COMPOSE) build http-server grpc-server
