@@ -1236,7 +1236,8 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 [[package]]
 name = "libremarkable"
 version = "0.7.0"
-source = "git+https://github.com/canselcik/libremarkable?branch=master#d9125f136ed34926c2528c34722aa3494611d644"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1da7c4a5765735faf196b9c3eb027cd9c2afb58abc772c8ef299dc56dc93edef"
 dependencies = [
  "aabb-quadtree",
  "cgmath",
