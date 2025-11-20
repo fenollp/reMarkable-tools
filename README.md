@@ -280,3 +280,9 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 	* [dataset results for Handwriting Recognition AND Time series](https://paperswithcode.com/datasets?task=handwriting-recognition&mod=time-series)
 	* [2023, Strokes Trajectory Recovery for Unconstrained Handwritten Documents with Automatic Evaluation](https://www.scitepress.org/Papers/2023/117001/117001.pdf)
 	* [2022, Benchmarking Online Sequence-to-Sequence and Character-based Handwriting Recognition from IMU-Enhanced Pens](https://arxiv.org/abs/2202.07036)
+
+* <https://www.reddit.com/r/EngineeringPorn/comments/undtut/structural_engineering_portable_training_system/>
+
+* <https://www.reddit.com/r/graphic_design/comments/uvjq45/carbon_based_lifeform_linocut_print_275x393_in/>
+
+* <https://www.reddit.com/r/ElectricalEngineering/comments/wbldlm/led_chaser_circuit/>
