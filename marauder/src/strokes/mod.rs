@@ -75,7 +75,7 @@ impl Stroke {
         for (start, ctrl, end) in self.points_and_pressure.iter().tuple_windows() {
             let points = [start, ctrl, end];
             let radii: Vec<f32> =
-                points.iter().map(|(_, pressure)| (self.pointwidth(*pressure) / 2.)).collect();
+                points.iter().map(|(_, pressure)| self.pointwidth(*pressure) / 2.).collect();
             // calculate control points
             let start_point = points[2].0.midpoint(points[1].0);
             let ctrl_point = points[1].0;

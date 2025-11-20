@@ -347,7 +347,7 @@ fn on_wacom_input(app: &mut ApplicationContext, input: WacomEvent) {
                 ];
                 let radii: Vec<f32> = points
                     .iter()
-                    .map(|point| ((mult as f32 * (point.1 as f32) / 2048.) / 2.0))
+                    .map(|point| (mult as f32 * (point.1 as f32) / 2048.) / 2.0)
                     .collect();
                 // calculate control points
                 let start_point = points[2].0.midpoint(points[1].0);
