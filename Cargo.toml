@@ -44,9 +44,9 @@ tower = "0.5"
 uuid = { version = "1", features = ["v4"] }
 
 [workspace.dependencies.libremarkable]
-# version = "0.6"
-git = "https://github.com/canselcik/libremarkable"
-branch = "master"
+version = "0.7"
+# git = "https://github.com/canselcik/libremarkable"
+# branch = "master"
 default-features = false
 features = [
     "appctx",

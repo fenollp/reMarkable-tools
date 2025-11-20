@@ -456,14 +456,15 @@ async fn loop_screensharing(app: &mut ApplicationContext<'_>, ch: Channel) -> Re
         };
         let img = image::DynamicImage::ImageRgb8(img);
 
-        let mut compressed = Vec::with_capacity(50_000);
-        img.write_to(&mut compressed, image::ImageOutputFormat::Png)
+        let mut compressed = std::io::Cursor::new(Vec::with_capacity(50_000));
+        img.write_to(&mut compressed, image::ImageFormat::Png)
             .map_err(|e| anyhow!("[loop_screensharing] failed to compress fb: {e:?}"))?;
+        let screen_png = compressed.into_inner();
         info!("[loop_screensharing] compressed!");
 
         let Args { room, user_id, .. } = ARGS.get().expect("set on startup");
-        let bytes = compressed.len();
-        let mut req = Request::new(SendScreenReq { room_id: room.clone(), screen_png: compressed });
+        let bytes = screen_png.len();
+        let mut req = Request::new(SendScreenReq { room_id: room.clone(), screen_png });
         add_xuser(&mut req, user_id)?;
 
         debug!("[loop_screensharing] sending canvas");
