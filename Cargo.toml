@@ -29,7 +29,7 @@ nom = "5" # TODO: bump
 pb.path = "pb"
 prost = "0.13"
 protoc-bin-vendored = "3"
-qrcode-generator = "4"
+qrcode-generator = "5"
 quick-xml = { version = "=0.22", features = ["serialize"] } # TODO: bump
 rand = "0.8"
 ringbuffer = "0.15"
