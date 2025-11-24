@@ -2056,9 +2056,9 @@ dependencies = [
 
 [[package]]
 name = "serde-jsonlines"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07bdd6db666f827c1843d4710520093675e6c0b6e39a02e1a8d9e9b2f71cbb58"
+checksum = "013e069239d98648ea43a9c01845b381445e88de08b5a895ef9302e3bffde03d"
 dependencies = [
  "futures-core",
  "futures-sink",
