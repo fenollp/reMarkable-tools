@@ -27,7 +27,7 @@ itertools = "0.14"
 log = "0.4"
 nom = "5" # TODO: bump
 pb.path = "pb"
-prost = "0.13"
+prost = "0.14"
 protoc-bin-vendored = "3"
 qrcode-generator = "5"
 quick-xml = { version = "=0.22", features = ["serialize"] } # TODO: bump
