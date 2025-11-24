@@ -31,7 +31,7 @@ prost = "0.13"
 protoc-bin-vendored = "3"
 qrcode-generator = "5"
 quick-xml = { version = "=0.22", features = ["serialize"] } # TODO: bump
-rand = "0.8"
+rand = "0.9"
 ringbuffer = "0.16"
 serde = { version = "1", features = ["derive"] }
 serde-jsonlines = { version = "0.7", features = ["async"] }
