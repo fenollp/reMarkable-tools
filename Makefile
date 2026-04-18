@@ -3,7 +3,7 @@ DEVICE ?= remarkable
 # cargo install cross
 
 TARGET ?= armv7-unknown-linux-musleabihf
-LOCAL_TARGET = rustc -Vv | grep host: | cut -c7-
+LOCAL_TARGET ?= rustc -Vv | grep host: | cut -c7-
 
 DOCKER ?= docker
 COMPOSE ?= DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 $(DOCKER) compose
@@ -75,7 +75,7 @@ whiteboard: WEBHOST ?= http://fknwkdacd.com:18888/s
 whiteboard: PKG = marauder
 whiteboard: EXE = whiteboard
 whiteboard: marauder/src/strokes/strokes_generated.rs fmt
-	cargo clippy                      --locked --frozen --offline                    --package=$(PKG) -- -D warnings --no-deps \
+	cross clippy                      --locked --frozen --offline --target=$(TARGET) --package=$(PKG) -- -D warnings --no-deps \
 	  -W clippy::cast_lossless \
 	  -W clippy::redundant_closure_for_method_calls \
 	  -W clippy::str_to_string
