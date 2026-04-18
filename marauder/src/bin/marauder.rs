@@ -398,13 +398,12 @@ fn on_wacom_input(app: &mut ApplicationContext, input: WacomEvent) {
                 _ => unreachable!(),
             }
         }
-        WacomEvent::Hover { position: _, distance, tilt: _ } => {
+        WacomEvent::Hover { position: _, distance, tilt: _ }
             // If the pen is hovering, don't record its coordinates as the origin of the next line
-            if distance > 1 {
+            if distance > 1 => {
                 let mut wacom_stack = WACOM_HISTORY.lock().unwrap();
                 wacom_stack.clear();
                 UNPRESS_OBSERVED.store(true, Ordering::Relaxed);
-            }
         }
         _ => {}
     };
