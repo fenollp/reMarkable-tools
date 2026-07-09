@@ -1,0 +1,14 @@
+https://github.com/toltec-dev/toolchain/blob/faa26ae58cc1cc1222f8ef2b7090cee8bb82c554/rust/config
+
+[build]
+target = "armv7-unknown-linux-gnueabihf"
+
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+rustflags = [
+    "-C", "link-arg=-march=armv7-a",
+    "-C", "link-arg=-marm",
+    "-C", "link-arg=-mfpu=neon",
+    "-C", "link-arg=-mfloat-abi=hard",
+    "-C", "link-arg=-mcpu=cortex-a9",
+]
