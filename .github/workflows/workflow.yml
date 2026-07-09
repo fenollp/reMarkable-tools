@@ -1,48 +1,41 @@
 on: [push]
 name: Build for reMarkable
 jobs:
-
   build_for_remarkable:
     name: with musl
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        target: armv7-unknown-linux-musleabihf
-        default: true
-        components: rustfmt
-    - run: cargo fetch
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        command: build
-        args: --package=marauder --target=armv7-unknown-linux-musleabihf --release --bin whiteboard --locked --frozen --offline
+      - uses: actions/checkout@v7
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: armv7-unknown-linux-musleabihf
+          default: true
+          components: rustfmt
+      - run: cargo fetch
+      - run: cargo install cross --git https://github.com/cross-rs/cross
+      - run: cross build --package=marauder --target=armv7-unknown-linux-musleabihf --release --bin whiteboard --locked --frozen --offline
 
   whiteboard_hypercard:
     name: with libc
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        target: armv7-unknown-linux-gnueabihf
-        default: true
-        components: rustfmt
-    - run: cargo fetch
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        command: build
-        args: --package=marauder --target=armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked --frozen --offline
-    - uses: softprops/action-gh-release@v3 # TODO: https://github.com/actions/create-release/issues/29
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: |
-          ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v7
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: armv7-unknown-linux-gnueabihf
+          default: true
+          components: rustfmt
+      - run: cargo fetch
+      - run: cargo install cross --git https://github.com/cross-rs/cross
+      - run: cross build --package=marauder --target=armv7-unknown-linux-gnueabihf --release --bin whiteboard --locked --frozen --offline
+      - uses: softprops/action-gh-release@v3 # TODO: https://github.com/actions/create-release/issues/29
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ./marauder/target/armv7-unknown-linux-gnueabihf/release/whiteboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -109,6 +109,17 @@ Visible rectangular elements that can be drawn on/dragged/zoomed/rotated/connect
 	* image should be draggable + zoomable (= two-finger gesture on iOS Reddit app's image viewer)
         * should be able to draw on top of said image
 
+## Building
+
+Building the Rust crates requires `protoc` (protobuf-compiler >= 3.6.1) installed on the system:
+
+```shell
+apt satisfy 'protobuf-compiler (>= 3.6.1)'
+```
+
+The build script picks up `protoc` from `$PATH`, or from `$PROTOC` if set.
+Cross-compilation via [`cross`](https://github.com/cross-rs/cross) installs it automatically through the `pre-build` hooks in [`Cross.toml`](./Cross.toml).
+
 ## marauder
 
 * [![Marauder's map](https://thumbs.gfycat.com/AcrobaticLastingBeardedcollie-size_restricted.gif)](https://zippy.gfycat.com/AcrobaticLastingBeardedcollie.webm)
