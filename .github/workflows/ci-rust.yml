@@ -8,48 +8,42 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        target: ${{ env.TARGET }}
-        default: true
-        components: rustfmt
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        args: --package=marauder --target ${{ env.TARGET }}
-        command: test
+      - uses: actions/checkout@v7
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ env.TARGET }}
+          default: true
+          components: rustfmt
+      - run: cargo install cross --git https://github.com/cross-rs/cross
+      - run: cross test --package=marauder --target ${{ env.TARGET }}
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: nightly
-        target: ${{ env.TARGET }}
-        default: true
-        components: rustfmt
-    - run: cargo +nightly fmt --all -- --check
+      - uses: actions/checkout@v7
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: ${{ env.TARGET }}
+          default: true
+          components: rustfmt
+      - run: cargo +nightly fmt --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        target: ${{ env.TARGET }}
-        default: true
-        components: rustfmt, clippy
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        args: --package=marauder --target ${{ env.TARGET }} -- -D warnings
-        command: clippy
+      - uses: actions/checkout@v7
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ env.TARGET }}
+          default: true
+          components: rustfmt, clippy
+      - run: cargo install cross --git https://github.com/cross-rs/cross
+      - run: cross clippy --package=marauder --target ${{ env.TARGET }} -- -D warnings

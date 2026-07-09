@@ -1,7 +1,5 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let protoc = protoc_bin_vendored::protoc_bin_path()?;
-    std::env::set_var("PROTOC", protoc);
-
+    // Uses `protoc` from $PATH (or $PROTOC if set). Requires protobuf-compiler >= 3.6.1.
     tonic_build::compile_protos("proto/whiteboard.proto")?;
     Ok(())
 }

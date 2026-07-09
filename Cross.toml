@@ -1,0 +1,9 @@
+[target.armv7-unknown-linux-gnueabihf]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes protobuf-compiler",
+]
+
+[target.armv7-unknown-linux-musleabihf]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes protobuf-compiler",
+]
