@@ -1,0 +1,58 @@
+https://github.com/toltec-dev/toltec/issues/729
+https://github.com/bkirwi/sill/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
+https://github.com/nats-io/nats.rs
+https://github.com/Amanieu/atomic-rs#generic-atomict-for-rust
+https://github.com/fenollp/reMarkable-tools/actions/runs/5942815853/job/16116569797?pr=50
+https://docs.rs/bytemuck/latest/bytemuck/trait.NoUninit.html
+https://fknwkdacd.com:18888/s/living-room/
+
+
+rm-docker.git
+
+reMarkable: ~/ wget http://toltec-dev.org/bootstrap
+reMarkable: ~/ echo "04a28483286f88c5c7f39e352afb62adc57f6162a29fd7e124d832205bb0980e  bootstrap" | sha256sum -c && bash bootstrap
+
+toltecctl reenable
+opkg update
+opkg upgrade
+opkg install whiteboard-hypercard
+opkg install oxide
+
+#See "systemctl status rm2fb.service" and "journalctl -xe" for details.
+# systemctl status rm2fb.service
+● rm2fb.service - reMarkable 2 Framebuffer Server
+     Loaded: loaded (/lib/systemd/system/rm2fb.service; disabled; vendor preset: disabled)
+     Active: inactive (dead)
+
+Oct 09 13:47:07 reMarkable systemd[1]: [[0;1;31m[[0;1;39m[[0;1;31mFailed to start reMarkable 2 Framebuffer Server.[[0m
+Oct 09 13:47:10 reMarkable systemd[1]: Stopped reMarkable 2 Framebuffer Server.
+Oct 09 13:53:53 reMarkable systemd[1]: Starting reMarkable 2 Framebuffer Server...
+Oct 09 13:53:54 reMarkable xochitl[2568]: STARTING RM2FB
+Oct 09 13:53:54 reMarkable xochitl[2568]: Missing address for function 'getInstance'
+Oct 09 13:53:54 reMarkable xochitl[2568]: PLEASE SEE https://github.com/ddvk/remarkable2-framebuffer/issues/18
+Oct 09 13:53:54 reMarkable systemd[1]: [[0;1;39m[[0;1;31m[[0;1;39mrm2fb.service: Main process exited, code=exited, status=255/EXCEPTION[[0m
+Oct 09 13:53:54 reMarkable systemd[1]: [[0;1;38;5;185m[[0;1;39m[[0;1;38;5;185mrm2fb.service: Failed with result 'exit-code'.[[0m
+Oct 09 13:53:54 reMarkable systemd[1]: [[0;1;31m[[0;1;39m[[0;1;31mFailed to start reMarkable 2 Framebuffer Server.[[0m
+Oct 09 13:53:57 reMarkable systemd[1]: Stopped reMarkable 2 Framebuffer Server.
+
+
+systemctl daemon-reload
+systemctl stop xochitl
+/opt/bin/whiteboard
+
+halt
+
+
+https://github.com/toltec-dev/toltec/blob/stable/docs/package-guide.md#testing-your-package
+make whiteboard-hypercard
+HOST=10.11.99.1 make whiteboard-hypercard-push
+> opkg install .cache/toltec/whiteboard-hypercard_<VERSION+ARCH>.ipk
+> ...
+> opkg remove whiteboard-hypercard
+
+https://oxide.eeems.codes/
+opkg install oxide
+systemctl disable --now xochitl
+systemctl enable --now rm2fb
+systemctl enable --now tarnish
+
